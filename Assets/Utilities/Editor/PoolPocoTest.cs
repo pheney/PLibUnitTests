@@ -17,8 +17,8 @@ namespace PLib
         public static void LogError(string s) { Console.WriteLine(s); }
     }
 
-    public class MonoBehaviour {
-
+    public class MonoBehaviour 
+    {
         void Instantiate() { }
         void Destroy() { }
         void DestroyImmediate() { }
@@ -39,13 +39,13 @@ namespace PoolTest
         }
         TestClass prefab;
 
+        #region Default standard behavior
+
         [SetUp]
         public void Setup()
         {
             prefab = new TestClass(9, "ok");
         }
-
-        #region Default standard behavior
 
         [Test]
         public void Get_EmptyPoolInstantiatesObject()

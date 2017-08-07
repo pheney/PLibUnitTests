@@ -8,8 +8,8 @@ using System;
 using Random = UnityEngine.Random;
 
 namespace PLib
-{    
-    #if UNIT_TEST
+{
+#if UNIT_TEST
     public class Debug
     {
         public static void Log(string s) { Console.WriteLine(s); }
@@ -17,16 +17,16 @@ namespace PLib
         public static void LogError(string s) { Console.WriteLine(s); }
     }
 
-    public class MonoBehaviour {
-
+    public class MonoBehaviour 
+    {
         void Instantiate() { }
         void Destroy() { }
         void DestroyImmediate() { }
     }
-    #endif
+#endif
 }
-namespace PoolTest {
-
+namespace PoolTest
+{
     [TestFixture]
     public class PoolTest
     {
@@ -249,7 +249,7 @@ namespace PoolTest {
             //  assert
             Assert.AreEqual(0, available, "Pool kept objects past expiration");
         }
-        
+
         [Test]
         public void Prewarm_CreatesObjects()
         {
@@ -272,7 +272,7 @@ namespace PoolTest {
         {
             //  setup
             PPool.Clear(prefab);
-            
+
             //  arrange
             int count = 9;
             int reduced = count - 1;
@@ -321,7 +321,7 @@ namespace PoolTest {
             int available = PPool.GetAvailable(prefab);
 
             //  assert
-            Assert.AreEqual(0, available, "Pool did not expire unused objects");            
+            Assert.AreEqual(0, available, "Pool did not expire unused objects");
         }
 
         #endregion
@@ -353,7 +353,7 @@ namespace PoolTest {
         public void SetNoStaleDuration_RemovesTimestamps()
         {
             //  TODO
-            Assert.IsTrue(false,"Unit Test Not implemented");
+            Assert.IsTrue(false, "Unit Test Not implemented");
         }
 
         [Test]

@@ -60,7 +60,7 @@ namespace PLib.Pooling
         /// Clears all pools. Destroys all objects in the pools, then
         ///	deletes the pools as well. This can be expensive.
         /// </summary>
-        public static void Clear<T>(bool immediate = false) where T:new()
+        public static void Clear<T>(bool immediate = false) where T : new()
         {
             GetPool<T>().Clear(immediate);
         }
@@ -70,7 +70,7 @@ namespace PLib.Pooling
         /// Destroys all unused items in excess of the each item pool's 
         /// maximum capacity. Maximum capacity is set using SetLimit().
         /// </summary>
-        public static void Cull<T>(bool immediate = false)where T:new()
+        public static void Cull<T>(bool immediate = false) where T : new()
         {
             GetPool<T>().Cull(immediate);
         }
@@ -85,7 +85,7 @@ namespace PLib.Pooling
         {
             GetPool<T>().Expire(immediate);
         }
-        
+
         /// <summary>
         /// 2017-8-4
         /// Returns an instance of the provided prefab from the appropriate pool.

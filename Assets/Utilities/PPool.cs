@@ -49,7 +49,7 @@ namespace PLib.Pooling
         }
 
         #endregion
-        #region Manager API (for GameObjects)
+        #region Manager API
         //////////////////////
         //	Public API		//
         //////////////////////
@@ -137,7 +137,7 @@ namespace PLib.Pooling
         {
             return Put(item);
         }
-        
+
         /// <summary>
         /// 2017-8-3
         /// Returns the number of unused items in the 'available' pool for
@@ -181,7 +181,7 @@ namespace PLib.Pooling
         {
             GetPool(prefab).Prewarm(count, duration);
         }
-        
+
         /// <summary>
         ///	2017-8-7
         /// Clears the pool. Destroys all objects in the pool, then
@@ -214,7 +214,7 @@ namespace PLib.Pooling
         }
 
         #endregion
-        
+
         /// <summary>
         /// 2017-8-4
         /// A pool for re-using GameObjects. Do not use this with POCOs. The creation/destruction
@@ -416,17 +416,17 @@ namespace PLib.Pooling
                 //TimeSpan timeout = TimeSpan.FromSeconds(0.1f);
                 //Task t = Task.Run(() =>
                 //{
-                    //  loop until the pool is culled to the appropriate amount
-                    for (int i = this.max; i < (this.available.Count + this.inUse.Count)
-                            && this.max != UNLIMITED; i++)
-                    {
-                        CullImmediate(1);
+                //  loop until the pool is culled to the appropriate amount
+                for (int i = this.max; i < (this.available.Count + this.inUse.Count)
+                        && this.max != UNLIMITED; i++)
+                {
+                    CullImmediate(1);
 
-                        //if (immediate) continue;
+                    //if (immediate) continue;
 
-                        //  wait a few frames
-                        //Thread.Sleep(timeout);
-                    }
+                    //  wait a few frames
+                    //Thread.Sleep(timeout);
+                }
                 //});
                 Debug.LogWarning("Pool.Cull() does not implement any sort of delay.");
             }
@@ -552,26 +552,26 @@ namespace PLib.Pooling
                 //TimeSpan timeout = TimeSpan.FromSeconds(0.1f);
                 //Task t = Task.Run(() =>
                 //{
-                    //  loop indefinitely, until all stale items are destroyed
-                    while (this.staleTime.Count > 0)
-                    {
-                        //  Convert the dictionary of expired times to a sortable object
-                        List<KeyValuePair<int, float>> sortedDict = this.staleTime.ToList();
+                //  loop indefinitely, until all stale items are destroyed
+                while (this.staleTime.Count > 0)
+                {
+                    //  Convert the dictionary of expired times to a sortable object
+                    List<KeyValuePair<int, float>> sortedDict = this.staleTime.ToList();
 
-                        //  sort stale times by value
-                        sortedDict.Sort((l, r) => { return l.Value.CompareTo(r.Value); });
+                    //  sort stale times by value
+                    sortedDict.Sort((l, r) => { return l.Value.CompareTo(r.Value); });
 
-                        //  When the first timestamp in the sorted stale list has
-                        //  not expired, then exit because nothing else has expired either.
-                        if ((sortedDict[0].Value + this.stale) > Time.time) return;
+                    //  When the first timestamp in the sorted stale list has
+                    //  not expired, then exit because nothing else has expired either.
+                    if ((sortedDict[0].Value + this.stale) > Time.time) return;
 
-                        ExpireImmediate(1);
+                    ExpireImmediate(1);
 
-                        //if (immediate) continue;
+                    //if (immediate) continue;
 
-                        //  wait a few frames
-                        //Thread.Sleep(timeout);
-                    }
+                    //  wait a few frames
+                    //Thread.Sleep(timeout);
+                }
                 //});
                 Debug.LogWarning("Pool.Expire() does not implement any sort of delay.");
             }
