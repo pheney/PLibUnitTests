@@ -60,11 +60,9 @@ namespace PLib.Pooling
         /// Clears all pools. Destroys all objects in the pools, then
         ///	deletes the pools as well. This can be expensive.
         /// </summary>
-        public static void Clear(bool immediate = false)
+        public static void Clear<T>(bool immediate = false) where T:new()
         {
-            foreach (var p in pools.Values) p.Clear(immediate);
-
-            pools.Clear();
+            GetPool<T>().Clear(immediate);
         }
 
         /// <summary>
@@ -72,9 +70,9 @@ namespace PLib.Pooling
         /// Destroys all unused items in excess of the each item pool's 
         /// maximum capacity. Maximum capacity is set using SetLimit().
         /// </summary>
-        public static void Cull(bool immediate = false)
+        public static void Cull<T>(bool immediate = false)where T:new()
         {
-            foreach (var p in pools.Values) p.Cull(immediate);
+            GetPool<T>().Cull(immediate);
         }
 
         /// <summary>
@@ -83,9 +81,9 @@ namespace PLib.Pooling
         /// objects that have been unused longer than Stale Duration.
         /// Stale Duration is set using SetLimit().
         /// </summary>
-        public static void Expire(bool immediate = false)
+        public static void Expire<T>(bool immediate = false) where T : new()
         {
-            foreach (var p in pools.Values) p.Expire(immediate);
+            GetPool<T>().Expire(immediate);
         }
         
         /// <summary>

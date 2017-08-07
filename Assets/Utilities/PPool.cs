@@ -144,13 +144,13 @@ namespace PLib.Pooling
         /// the given prefab. Returns -1 when this prefab does not have 
         /// a Pool object.
         /// </summary>
-        public static int GetAvailable(GameObject item)
+        public static int GetAvailable(GameObject prefab)
         {
             int result = -1;
-            int hash = item.GetHashCode();
+            int hash = prefab.GetHashCode();
             if (pools.ContainsKey(hash))
             {
-                result = GetPool(item).Available();
+                result = GetPool(prefab).Available();
             }
             return result;
         }
@@ -161,13 +161,13 @@ namespace PLib.Pooling
         /// the given prefab. Returns -1 when this prefab does not have 
         /// a Pool object.
         /// </summary>
-        public static int GetInUse(GameObject item)
+        public static int GetInUse(GameObject prefab)
         {
             int result = -1;
-            int hash = item.GetHashCode();
+            int hash = prefab.GetHashCode();
             if (pools.ContainsKey(hash))
             {
-                result = GetPool(item).InUse();
+                result = GetPool(prefab).InUse();
             }
             return result;
         }
@@ -177,21 +177,19 @@ namespace PLib.Pooling
         /// Prewarms the object pool. Prewarming is spread over a number
         /// of seconds equal to "duration." Default is 3 seconds.
         /// </summary>
-        public static void Prewarm(GameObject item, int count, float duration = 3)
+        public static void Prewarm(GameObject prefab, int count, float duration = 3)
         {
-            GetPool(item).Prewarm(count, duration);
+            GetPool(prefab).Prewarm(count, duration);
         }
         
         /// <summary>
-        ///	2017-8-4
-        /// Clears all pools. Destroys all objects in the pools, then
-        ///	deletes the pools as well. This can be expensive.
+        ///	2017-8-7
+        /// Clears the pool. Destroys all objects in the pool, then
+        ///	deletes the pool as well. This can be expensive.
         /// </summary>
-        public static void Clear(bool immediate = false)
+        public static void Clear(GameObject prefab, bool immediate = false)
         {
-            foreach (Pool p in pools.Values) p.Clear(immediate);
-
-            pools.Clear();
+            GetPool(prefab).Clear(immediate);
         }
 
         /// <summary>
@@ -199,9 +197,9 @@ namespace PLib.Pooling
         /// Destroys all unused items in excess of the each item pool's 
         /// maximum capacity. Maximum capacity is set using SetLimit().
         /// </summary>
-        public static void Cull(bool immediate = false)
+        public static void Cull(GameObject prefab, bool immediate = false)
         {
-            foreach (Pool p in pools.Values) p.Cull(immediate);
+            GetPool(prefab).Cull(immediate);
         }
 
         /// <summary>
@@ -210,9 +208,9 @@ namespace PLib.Pooling
         /// objects that have been unused longer than Stale Duration.
         /// Stale Duration is set using SetLimit().
         /// </summary>
-        public static void Expire(bool immediate = false)
+        public static void Expire(GameObject prefab, bool immediate = false)
         {
-            foreach (Pool p in pools.Values) p.Expire(immediate);
+            GetPool(prefab).Expire(immediate);
         }
 
         #endregion
@@ -369,6 +367,7 @@ namespace PLib.Pooling
                 //        Thread.Sleep(timeout);
                 //    }
                 //});
+                Debug.LogWarning("Pool.Prewarm() does not implement any sort of delay.");
             }
 
             /// <summary>
@@ -429,6 +428,7 @@ namespace PLib.Pooling
                         //Thread.Sleep(timeout);
                     }
                 //});
+                Debug.LogWarning("Pool.Cull() does not implement any sort of delay.");
             }
 
             /// <summary>
@@ -573,6 +573,7 @@ namespace PLib.Pooling
                         //Thread.Sleep(timeout);
                     }
                 //});
+                Debug.LogWarning("Pool.Expire() does not implement any sort of delay.");
             }
 
             /// <summary>
