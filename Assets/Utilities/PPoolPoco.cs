@@ -261,16 +261,23 @@ namespace PLib.Pooling
             /// <summary>
             /// 2017-8-4
             /// Put an object back into the pool.
+            /// Returns false if the object is null;
+            /// Returns false if the object is not from this pool.
+            /// Returns true when the object is reclaimed.
             /// </summary>
-            public void Put(object item)
+            public bool Put(object item)
             {
-                if (item == null) return;
+                if (item == null) return false;
                 if (typeof(object) is T)
                 {
-                    this.inUse.Remove((T)item);
-                    this.available.Add((T)item);
-                    SetRecycleTime((T)item);
+                    T i = (T)item;
+                    if (!this.inUse.Contains(i) 
+                        && !this.available.Contains(i)) return false;
+                    this.inUse.Remove(i);
+                    this.available.Add(i);
+                    SetRecycleTime(i);
                 }
+                return true;
             }
 
             /// <summary>

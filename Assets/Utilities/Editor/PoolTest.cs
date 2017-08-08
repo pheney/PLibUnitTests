@@ -39,6 +39,7 @@ namespace PoolTest
         public void Setup()
         {
             prefab = GameObject.CreatePrimitive(PrimitiveType.Cube);
+            prefab.name += " (prefab)";
         }
 
         [Test]
@@ -129,12 +130,14 @@ namespace PoolTest
             GameObject instance = PPool.Get(prefab);
             int available = PPool.GetAvailable(prefab);
 
-            //  act
-            PPool.Put(instance);
+            ////  act
+            bool putResult = PPool.Put(instance);
             int result = PPool.GetAvailable(prefab);
 
             //  assert
-            Assert.AreEqual(available + 1, result, "Available object count incorrect");
+            Assert.IsTrue(putResult, "Pool indicated object was destroyed");
+            Assert.AreEqual(0, available, "Should be no available objects");
+            Assert.AreEqual(1, result, "Should be one available object");
         }
 
         [Test]
@@ -238,13 +241,13 @@ namespace PoolTest
             PPool.Clear(prefab);
 
             //  arrange
-            float duration = 0f;
+            float duration = 1f;
             PPool.SetLimit(prefab, staleDuration: duration);
 
             //  act
             GameObject instance = PPool.Get(prefab);
             PPool.Put(instance);
-            //  Using a duration of '0' should trigger the time-based culling.
+            Delay(duration + 0.1f);
             int available = PPool.GetAvailable(prefab);
 
             //  assert
@@ -259,13 +262,18 @@ namespace PoolTest
 
             //  arrange
             int count = 9;
+            float duration = 7; //  second
 
             //  act
-            PPool.Prewarm(prefab, count, 0);
-            int available = PPool.GetAvailable(prefab);
+            PPool.Prewarm(prefab, count, duration);
+            Delay(duration * 0.5f);
+            int initial = PPool.GetAvailable(prefab);
+            Delay(duration);
+            int complete = PPool.GetAvailable(prefab);
 
             //  assert
-            Assert.AreEqual(count, available, "Pool did not prewarm correct number of objects");
+            Assert.IsTrue(initial<count, "Partial generaton contains too many objects");
+            Assert.AreEqual(count, complete, "Complete generation contains wrong number of objects");
         }
 
         [Test]
@@ -312,12 +320,15 @@ namespace PoolTest
             PPool.Clear(prefab);
 
             //  arrange
+            float longStale = 9;
+            float shortStale = 1;
             int count = 7;
-            PPool.SetLimit(prefab, staleDuration: 99);
+            PPool.SetLimit(prefab, staleDuration: longStale);
             PPool.Prewarm(prefab, count, duration: 0);
 
             //  act
-            PPool.SetLimit(prefab, staleDuration: 0);
+            PPool.SetLimit(prefab, staleDuration: shortStale);
+            Delay(shortStale + 0.1f);
             PPool.Expire(prefab);
             int available = PPool.GetAvailable(prefab);
 
@@ -393,7 +404,6 @@ namespace PoolTest
         }
 
         #endregion
-
         #region Diagnostics
 
         Stopwatch stopwatch = new Stopwatch();

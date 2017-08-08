@@ -5,6 +5,7 @@ using PLib.General;
 using System.Threading;
 using System;
 using System.Linq;
+using System.Collections;
 
 namespace PLib.Pooling
 {
@@ -112,18 +113,16 @@ namespace PLib.Pooling
         public static bool Put(GameObject item)
         {
             bool result = false;
-            int hash = item.GetHashCode();
 
-            IPool pool;
-            if (pools.TryGetValue(hash, out pool))
+            foreach (var p in pools)
             {
-                pool.Put(item);
-                result = true;
+                IPool pool = p.Value;
+                result = pool.Put(item);
+                if (result) break;
             }
-            else
-            {
+
+            if (!result) { 
                 MonoBehaviour.Destroy(item);
-                result = false;
             }
 
             return result;
@@ -242,6 +241,7 @@ namespace PLib.Pooling
             #endregion
 
             /// <summary>
+            /// 2017-8-7
             /// Prefab is the item the pool will manage.
             /// </summary>
             public Pool(GameObject prefab)
@@ -257,11 +257,11 @@ namespace PLib.Pooling
             #region Basic Operations
 
             /// <summary>
-            /// 2016-2-17
+            /// 2017-8-7
             /// Get a GameObject from the pool.
             /// The GameObject will be set active.
             /// The GameObject has been reset via broadcast message "Reset" and "Start".
-            /// 2016-5-16
+            /// 
             /// Position will be (0,0,0), rotation will be (0,0,0)
             /// Scale is unaffected.
             /// </summary>
@@ -299,15 +299,20 @@ namespace PLib.Pooling
             /// <summary>
             /// Put a GameObject back into the pool.
             /// The GameObject will be set inactive.
+            /// Returns true if the object is reclaimed.
+            /// Returns false if the object does not belong to this pool.
+            /// Returns false if the object is null;
             /// </summary>
-            public void Put(object item)
+            public bool Put(object item)
             {
-                if (item == null) return;
+                if (item == null) return false;
                 GameObject g = (GameObject)item;
+                if (!this.inUse.Contains(g) && !this.available.Contains(g)) return false;
                 g.SetActive(false);
                 this.inUse.Remove(g);
                 this.available.Add(g);
                 SetRecycleTime(g);
+                return true;
             }
 
             /// <summary>
@@ -341,7 +346,7 @@ namespace PLib.Pooling
             #region Option: Pre-generation of objects
 
             /// <summary>
-            /// 2017-8-3
+            /// 2017-8-7
             /// Pre-instantiates a number of items for the pool.
             /// The generation is distributed over [duration] seconds.
             /// Prewarm will never create more than one item per frame.
@@ -351,23 +356,11 @@ namespace PLib.Pooling
                 if (count <= 0) return;
                 if (duration <= 0) return;
 
-                float delay = Mathf.Min(1 / 60f, duration) / count;
+                float delay = Mathf.Min(1 / 60f, duration / count);
+                Action<int> a = PrewarmImmediate;
 
-                PrewarmImmediate(count);
-
-                //  Preserved, but commented because Task isn't working.
-                //TimeSpan timeout = TimeSpan.FromSeconds(delay);                
-                //Task t = Task.Run(() =>
-                //{
-                //    //  Create the things.
-                //    //  Create no more than [count] things.
-                //    for (int i = 0; i < count; i++)
-                //    {
-                //        PrewarmImmediate(1);
-                //        Thread.Sleep(timeout);
-                //    }
-                //});
-                Debug.LogWarning("Pool.Prewarm() does not implement any sort of delay.");
+                PCoroutine c = CreateCoroutineRunner();
+                c.StartCoroutineDelegate(Loop(count, delay, a));
             }
 
             /// <summary>
@@ -382,6 +375,31 @@ namespace PLib.Pooling
                 for (int i = 0; i < count && ((total + i) < max || max == UNLIMITED); i++)
                 {
                     this.Put(MonoBehaviour.Instantiate(model));
+                }
+            }
+
+            /// <summary>
+            /// Creates a temporary GameObject that runs a coroutine for delayed
+            /// actions. The GameObject deletes itself once complete.
+            /// </summary>
+            private PCoroutine CreateCoroutineRunner()
+            {
+                //  Create a game object with no renderer or geometry
+                GameObject g = new GameObject();
+
+                //  Attach a PCoroutine MonoBehavior to the GameObject
+                PCoroutine pcoroutine = g.AddComponent<PCoroutine>();
+
+                //  Return a reference to the PCoroutine
+                return pcoroutine;
+            } 
+
+            private IEnumerator Loop(int count, float delay, Action<int> action)
+            {
+                for (int i = 0; i< count; i++)
+                {
+                    action(1);
+                    yield return new WaitForSeconds(delay);
                 }
             }
 
@@ -635,7 +653,7 @@ namespace PLib.Pooling
         #region Basic Operations
 
         object Get();
-        void Put(object item);
+        bool Put(object item);
         void Clear(bool immediate);
 
         #endregion

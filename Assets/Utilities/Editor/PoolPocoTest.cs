@@ -6,6 +6,7 @@ using NUnit.Framework;
 using PLib.Pooling;
 using System;
 using Random = UnityEngine.Random;
+using System.Diagnostics;
 
 namespace PLib
 {
@@ -361,6 +362,22 @@ namespace PoolTest
             //  assert
             Assert.AreEqual(limit, countWhileLimited, "Object creation not correctly limited");
             Assert.AreEqual(count, countUnlimited, "Unlimited object creation count incorrect");
+        }
+
+        #endregion
+        #region Diagnostics
+
+        Stopwatch stopwatch = new Stopwatch();
+
+        /// <summary>
+        /// </summary>
+        /// <param name="duration">seconds</param>
+        public void Delay(float duration)
+        {
+            stopwatch.Reset();
+            stopwatch.Start();
+            while (stopwatch.ElapsedMilliseconds < duration * 1000) ;
+            stopwatch.Stop();
         }
 
         #endregion
