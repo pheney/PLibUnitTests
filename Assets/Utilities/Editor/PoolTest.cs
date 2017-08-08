@@ -72,31 +72,19 @@ namespace PoolTest
             PPool.Clear(prefab);
 
             //  arrange
-            GameObject instance, sameObject;
-            int count = 9;
+            GameObject first, second;
+            int firstHash, secondHash;
 
             //  act
-            for (int i = 0; i < count; i++)
-            {
-                instance = PPool.Get(prefab);
-                PPool.Put(instance);
-                instance = null;
-            }
-            sameObject = PPool.Get(prefab);
-            bool isActive = sameObject.activeSelf;
-            bool nameMatch = prefab.name.Equals(sameObject.name);
-            int availableCount = PPool.GetAvailable(prefab);
-            int usedCount = PPool.GetInUse(prefab);
+            first = PPool.Get(prefab);
+            firstHash = first.GetHashCode();
+            PPool.Put(first);
+
+            second = PPool.Get(prefab);
+            secondHash = second.GetHashCode();
 
             //  assert
-            Assert.IsNotNull(prefab, "Prefab is null");
-            Assert.IsNotNull(sameObject, "Second instance is null");
-            Assert.AreNotSame(prefab, sameObject, "Prefab and second instance are the same object");
-            Assert.IsTrue(isActive, "Second instanced object is not active");
-            Assert.IsTrue(nameMatch, "Prefab and second instanced object have different names {0} <> {1}",
-                prefab.name, sameObject.name);
-            Assert.AreEqual(0, availableCount, "Pool should have 0 available objects");
-            Assert.AreEqual(1, usedCount, "Pool should have 1 object in use");
+            Assert.AreEqual(firstHash, secondHash, "First and second hash do not match");
         }
 
         [Test]
@@ -364,6 +352,9 @@ namespace PoolTest
         [Test]
         public void SetNoStaleDuration_RemovesTimestamps()
         {
+            //  setup
+            PPool.Clear(prefab);
+
             //  arrange
             float duration = 1;    //  seconds
             PPool.SetLimit(prefab, staleDuration: duration);

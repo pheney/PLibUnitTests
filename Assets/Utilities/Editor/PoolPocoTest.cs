@@ -75,32 +75,19 @@ namespace PoolTest
             PPocoPool.Clear<TestClass>();
 
             //  arrange
-            TestClass t;
-            int iData = 123;
-            string sData = "hi";
+            TestClass first, second;
+            int firstHash, secondHash;
 
             //  act
-            t = PPocoPool.Get<TestClass>();
+            first = PPocoPool.Get<TestClass>();
+            firstHash = first.GetHashCode();
+            PPocoPool.Put(first);
 
-            //  TODO - improve
-            //      (Pool objecs guarantee reuse of objects, 
-            //      but do not guarantee immutability of object data.)
-            t.iValue = iData;
-            t.sValue = sData;
-            int hash = t.GetHashCode();
-            PPocoPool.Put(t);
-            t = null;
-            t = PPocoPool.Get<TestClass>();
-
-            bool hashMatch = hash.Equals(t.GetHashCode());
-            int availableCount = PPocoPool.GetAvailable<TestClass>();
-            int usedCount = PPocoPool.GetInUse<TestClass>();
-
+            second = PPocoPool.Get<TestClass>();
+            secondHash = second.GetHashCode();
+            
             //  assert
-            Assert.IsNotNull(t, "Instance is null");
-            Assert.IsTrue(hashMatch, "Pool object hash does not match original hash");
-            Assert.AreEqual(0, availableCount, "Pool should have 0 available objects");
-            Assert.AreEqual(1, usedCount, "Pool should have 1 object in use");
+            Assert.AreEqual(firstHash, secondHash, "Hashcodes do not match");
         }
 
         [Test]
@@ -114,10 +101,11 @@ namespace PoolTest
             int available = PPocoPool.GetAvailable<TestClass>();
 
             //  act
-            PPocoPool.Put(instance);
+            bool putResult = PPocoPool.Put(instance);
             int result = PPocoPool.GetAvailable<TestClass>();
 
             //  assert
+            Assert.IsTrue(putResult, "Pool indicated object was not reclaimed");
             Assert.AreEqual(available + 1, result, "Available object count incorrect");
         }
 
@@ -242,13 +230,18 @@ namespace PoolTest
 
             //  arrange
             int count = 9;
+            float duration = 7; //  seconds
 
             //  act
-            PPocoPool.Prewarm<TestClass>(count, 0);
-            int available = PPocoPool.GetAvailable<TestClass>();
+            PPocoPool.Prewarm<TestClass>(count, duration);
+            Delay(duration * 0.5f);
+            int initial = PPocoPool.GetAvailable<TestClass>();
+            Delay(duration);
+            int complete = PPocoPool.GetAvailable<TestClass>();
 
             //  assert
-            Assert.AreEqual(count, available, "Pool did not prewarm correct number of objects");
+            Assert.IsTrue(initial < count, "Partial generaton contains too many objects");
+            Assert.AreEqual(count, complete, "Complete generation contains wrong number of objects");
         }
 
         [Test]
@@ -295,12 +288,15 @@ namespace PoolTest
             PPocoPool.Clear<TestClass>();
 
             //  arrange
+            float longStale = 9;
+            float shortStale = 1;
             int count = 7;
-            PPocoPool.SetLimit<TestClass>(staleDuration: 99);
+            PPocoPool.SetLimit<TestClass>(staleDuration: longStale);
             PPocoPool.Prewarm<TestClass>(count, duration: 0);
 
             //  act
-            PPocoPool.SetLimit<TestClass>(staleDuration: 0);
+            PPocoPool.SetLimit<TestClass>(staleDuration: shortStale);
+            Delay(shortStale + 0.1f);
             PPocoPool.Expire<TestClass>();
             int available = PPocoPool.GetAvailable<TestClass>();
 
@@ -336,8 +332,22 @@ namespace PoolTest
         [Test]
         public void SetNoStaleDuration_RemovesTimestamps()
         {
-            //  TODO
-            Assert.IsTrue(false, "Unit Test Not implemented");
+            //  setup
+            PPocoPool.Clear<TestClass>();
+
+            //  arrange
+            float duration = 1;    //  seconds
+            PPocoPool.SetLimit<TestClass>(staleDuration: duration);
+            int count = 9;
+
+            //  act            
+            PPocoPool.Prewarm<TestClass>(count);
+            PPocoPool.SetLimit<TestClass>(staleDuration: PPocoPool.UNLIMITED);
+            Delay(duration + 0.1f);
+            int available = PPocoPool.GetAvailable<TestClass>();
+
+            //  assert
+            Assert.AreEqual(count, available, "Wrong number available");
         }
 
         [Test]
