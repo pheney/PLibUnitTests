@@ -45,3 +45,26 @@ $RECYCLE.BIN/
 Network Trash Folder
 Temporary Items
 .apdisk
+
+# Ignore everything by default
+/*
+
+# Except the .gitignore file and the Assets folder
+!.gitignore
+!Assets/
+
+!*.js
+!*.cs
+!*.png
+!*.tga
+!*.tif
+!*.psd
+!*.jpg
+!*.ma
+
+*.meta
+*.mat
+*.prototype
+*.physicmaterial
+*.unity
+*.asset

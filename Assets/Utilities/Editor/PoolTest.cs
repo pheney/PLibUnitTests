@@ -6,6 +6,7 @@ using NUnit.Framework;
 using PLib.Pooling;
 using System;
 using Random = UnityEngine.Random;
+using System.Diagnostics;
 
 namespace PLib
 {
@@ -352,8 +353,19 @@ namespace PoolTest
         [Test]
         public void SetNoStaleDuration_RemovesTimestamps()
         {
-            //  TODO
-            Assert.IsTrue(false, "Unit Test Not implemented");
+            //  arrange
+            float duration = 1;    //  seconds
+            PPool.SetLimit(prefab, staleDuration: duration);
+            int count = 9;
+
+            //  act            
+            PPool.Prewarm(prefab, count);
+            PPool.SetLimit(prefab, staleDuration: PPool.UNLIMITED);
+            Delay(duration + 0.1f);
+            int available = PPool.GetAvailable(prefab);
+
+            //  assert
+            Assert.AreEqual(count, available, "Wrong number available");
         }
 
         [Test]
@@ -381,5 +393,23 @@ namespace PoolTest
         }
 
         #endregion
+
+        #region Diagnostics
+
+        Stopwatch stopwatch = new Stopwatch();
+
+        /// <summary>
+        /// </summary>
+        /// <param name="duration">seconds</param>
+        public void Delay(float duration)
+        {
+            stopwatch.Reset();
+            stopwatch.Start();
+            while (stopwatch.ElapsedMilliseconds < duration * 1000) ;
+            stopwatch.Stop();
+        }
+
+        #endregion
     }
+
 }
