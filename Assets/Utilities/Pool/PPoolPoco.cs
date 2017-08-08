@@ -5,6 +5,8 @@ using PLib.General;
 using System.Threading;
 using System;
 using System.Linq;
+using System.Threading.Tasks;
+using Random = UnityEngine.Random;
 
 namespace PLib.Pooling
 {
@@ -20,7 +22,7 @@ namespace PLib.Pooling
     ///     to reuse objects, use "PPool.Put(item)"
     /// That's it. Everything else is managed behind the scenes.
     /// </summary>
-    public static class PPoolPoco
+    public static class PPocoPool
     {
         #region Data Libraries
         //////////////////////////
@@ -28,7 +30,6 @@ namespace PLib.Pooling
         //////////////////////////
 
         public const int UNLIMITED = -1;
-
         private static Dictionary<int, IPool> pools = new Dictionary<int, IPool>();
 
         /// <summary>
@@ -203,15 +204,15 @@ namespace PLib.Pooling
         ///     are automatically culled. This keeps memory usage down, at the
         ///     expensive of occassional GC.
         /// </summary>
-        class PocoPool<T> : IPool where T : new()
+        private class PocoPool<T> : IPool where T : new()
         {
             #region Data
 
-            private int max;
+            private int maxObjects;
+            private Dictionary<int, float> recycleTime;
+            private float staleDuration;
             private List<T> available;
             private List<T> inUse;
-            private Dictionary<int, float> staleTime;
-            private float stale;
 
             #endregion
 
@@ -221,7 +222,7 @@ namespace PLib.Pooling
             /// </summary>
             public PocoPool()
             {
-                this.staleTime = new Dictionary<int, float>();
+                this.recycleTime = new Dictionary<int, float>();
                 this.available = new List<T>();
                 this.inUse = new List<T>();
                 this.MaxSize(UNLIMITED);
@@ -237,7 +238,7 @@ namespace PLib.Pooling
             public object Get()
             {
                 //  when the number of items in use is at max, return null
-                if (max > 0 && inUse.Count == max) return default(T);
+                if (maxObjects > 0 && inUse.Count == maxObjects) return default(T);
 
                 T item;
 
@@ -305,19 +306,18 @@ namespace PLib.Pooling
                 if (count <= 0) return;
                 if (duration <= 0) return;
 
-                float delay = Mathf.Min(1 / 60f, duration) / count;
-                //TimeSpan timeout = TimeSpan.FromSeconds(delay);
-                //Task t = Task.Run(() =>
-                //{
-
-                //  Create the things.
-                //  Create no more than [count] things.
-                for (int i = 0; i < count; i++)
+                float delay = Mathf.Min(1 / 60f, duration / count);
+                TimeSpan timeout = TimeSpan.FromSeconds(delay);
+                Task.Factory.StartNew(() =>
                 {
-                    PrewarmImmediate(1);
-                    //Thread.Sleep(timeout);
-                }
-                //});
+                    //  Create the things.
+                    //  Create no more than [count] things.
+                    for (int i = 0; i < count; i++)
+                    {
+                        PrewarmImmediate(1);
+                        Thread.Sleep(timeout);
+                    }
+                });
             }
 
             /// <summary>
@@ -328,7 +328,7 @@ namespace PLib.Pooling
             private void PrewarmImmediate(int count = 1)
             {
                 int total = this.available.Count + this.inUse.Count;
-                for (int i = 0; i < count && ((total + i) < max || max == UNLIMITED); i++)
+                for (int i = 0; i < count && ((total + i) < maxObjects || maxObjects == UNLIMITED); i++)
                 {
                     this.Put(new T());
                 }
@@ -344,9 +344,9 @@ namespace PLib.Pooling
             /// </summary>
             public void MaxSize(int size)
             {
-                int originalSize = this.max;
-                this.max = size;
-                if (this.max < originalSize && size != UNLIMITED) Cull();
+                int originalSize = this.maxObjects;
+                this.maxObjects = size;
+                if (this.maxObjects < originalSize && size != UNLIMITED) Cull();
             }
 
             /// <summary>
@@ -360,23 +360,24 @@ namespace PLib.Pooling
             public void Cull(bool immediate = false)
             {
                 //  if the pool size is set to 'infinite' then do nothing
-                if (this.max == UNLIMITED) return;
+                if (this.maxObjects == UNLIMITED) return;
 
-                //TimeSpan timeout = TimeSpan.FromSeconds(0.1f);
-                //Task t = Task.Run(() =>
-                //{
-                //  loop until the pool is culled to the appropriate amount
-                for (int i = this.max; i < (this.available.Count + this.inUse.Count)
-                        && this.max != UNLIMITED; i++)
+                TimeSpan timeout;
+                Task.Factory.StartNew(() =>
                 {
-                    CullImmediate(1);
+                    //  loop until the pool is culled to the appropriate amount
+                    for (int i = this.maxObjects; i < (this.available.Count + this.inUse.Count)
+                            && this.maxObjects != UNLIMITED; i++)
+                    {
+                        CullImmediate(1);
 
-                    //if (immediate) continue;
+                        if (immediate) continue;
 
-                    //  wait a few frames
-                    //Thread.Sleep(timeout);
-                }
-                //});
+                        //  wait a few frames
+                        timeout = TimeSpan.FromSeconds(Random.value + 0.1f);
+                        Thread.Sleep(timeout);
+                    }
+                });
             }
 
             /// <summary>
@@ -387,7 +388,7 @@ namespace PLib.Pooling
             private void CullImmediate(int count = 1)
             {
                 //  if the pool size is set to 'infinite' then abort culling
-                if (this.max == UNLIMITED) return;
+                if (this.maxObjects == UNLIMITED) return;
 
                 //  cull the appropriate amount
                 int cullCount = Mathf.Min(count, this.available.Count);
@@ -407,19 +408,19 @@ namespace PLib.Pooling
             /// </summary>
             public void StaleDuration(float duration)
             {
-                float original = this.stale;
-                this.stale = duration;
+                float original = this.staleDuration;
+                this.staleDuration = duration;
 
                 //  Set to "no limit"
-                if (this.stale == UNLIMITED)
+                if (this.staleDuration == UNLIMITED)
                 {
                     //  Empty the stale timestamps
-                    this.staleTime.Clear();
+                    this.recycleTime.Clear();
                 }
                 else
                 {
                     //  Stale time reduced
-                    if (this.stale < original)
+                    if (this.staleDuration < original)
                     {
                         //  Check if any existing timestamp are now stale
                         Expire();
@@ -428,7 +429,7 @@ namespace PLib.Pooling
                     //  Ensure all available items have a stale timestamp
                     foreach (T g in this.available)
                     {
-                        if (this.staleTime.ContainsKey(g.GetHashCode())) continue;
+                        if (this.recycleTime.ContainsKey(g.GetHashCode())) continue;
                         SetRecycleTime(g);
                     }
                 }
@@ -441,8 +442,8 @@ namespace PLib.Pooling
             /// </summary>
             private void SetRecycleTime(T item)
             {
-                if (this.stale == UNLIMITED) return;
-                staleTime.Add(item.GetHashCode(), Time.time);
+                if (this.staleDuration == UNLIMITED) return;
+                recycleTime.Add(item.GetHashCode(), Time.time);
             }
 
             /// <summary>
@@ -453,9 +454,9 @@ namespace PLib.Pooling
             /// </summary>
             private float GetExpireTime(T item)
             {
-                if (this.stale == UNLIMITED) return -1;
+                if (this.staleDuration == UNLIMITED) return -1;
                 if (this.inUse.Contains(item)) return -1;
-                return staleTime[item.GetHashCode()] + this.stale;
+                return recycleTime[item.GetHashCode()] + this.staleDuration;
             }
 
             /// <summary>
@@ -466,10 +467,10 @@ namespace PLib.Pooling
             /// </summary>
             private void RemoveTimestamp(T item)
             {
-                if (this.stale == UNLIMITED) return;
+                if (this.staleDuration == UNLIMITED) return;
                 int id = item.GetHashCode();
-                if (!staleTime.ContainsKey(id)) return;
-                staleTime.Remove(id);
+                if (!recycleTime.ContainsKey(id)) return;
+                recycleTime.Remove(id);
             }
 
             /// <summary>
@@ -478,10 +479,10 @@ namespace PLib.Pooling
             /// </summary>
             private bool IsExpired(T item)
             {
-                if (this.stale == UNLIMITED) return false;
+                if (this.staleDuration == UNLIMITED) return false;
 
                 int id = item.GetHashCode();
-                if (!this.staleTime.ContainsKey(id)) return false;
+                if (!this.recycleTime.ContainsKey(id)) return false;
 
                 return Time.time > GetExpireTime(item);
             }
@@ -493,32 +494,33 @@ namespace PLib.Pooling
             /// </summary>
             public void Expire(bool immediate = false)
             {
-                if (this.stale == UNLIMITED) return;
+                if (this.staleDuration == UNLIMITED) return;
 
-                //TimeSpan timeout = TimeSpan.FromSeconds(0.1f);
-                //Task t = Task.Run(() =>
-                //{
-                //  loop indefinitely, until all stale items are destroyed
-                while (this.staleTime.Count > 0)
+                TimeSpan timeout;
+                Task.Factory.StartNew(() =>
                 {
-                    //  Convert the dictionary of expired times to a sortable object
-                    List<KeyValuePair<int, float>> sortedDict = this.staleTime.ToList();
+                    //  loop indefinitely, until all stale items are destroyed
+                    while (this.recycleTime.Count > 0)
+                    {
+                        //  Convert the dictionary of expired times to a sortable object
+                        List<KeyValuePair<int, float>> sortedDict = this.recycleTime.ToList();
 
-                    //  sort stale times by value
-                    sortedDict.Sort((l, r) => { return l.Value.CompareTo(r.Value); });
+                        //  sort stale times by value
+                        sortedDict.Sort((l, r) => { return l.Value.CompareTo(r.Value); });
 
-                    //  When the first timestamp in the sorted stale list has
-                    //  not expired, then exit because nothing else has expired either.
-                    if ((sortedDict[0].Value + this.stale) > Time.time) return;
+                        //  When the first timestamp in the sorted stale list has
+                        //  not expired, then exit because nothing else has expired either.
+                        if ((sortedDict[0].Value + this.staleDuration) > Time.time) return;
 
-                    ExpireImmediate(1);
+                        ExpireImmediate(1);
 
-                    //if (immediate) continue;
+                        if (immediate) continue;
 
-                    //  wait a few frames
-                    //Thread.Sleep(timeout);
-                }
-                //});
+                        //  wait a few frames
+                        timeout = TimeSpan.FromSeconds(Random.Range(1f, 3f));
+                        Thread.Sleep(timeout);
+                    }
+                });
             }
 
             /// <summary>
@@ -538,7 +540,7 @@ namespace PLib.Pooling
 
                     if (Time.time < GetExpireTime(g)) continue;
 
-                    this.staleTime.Remove(g.GetHashCode());
+                    this.recycleTime.Remove(g.GetHashCode());
                     this.available.RemoveAt(index);
                     expired++;
                 }
@@ -559,8 +561,8 @@ namespace PLib.Pooling
             {
                 StringBuilder b = new StringBuilder();
                 b.Append("POCO: " + typeof(T));
-                b.Append(" (Max pool size: " + max + ")\n");
-                b.Append(" (Stale duration: " + this.stale + ")\n");
+                b.Append(" (Max pool size: " + maxObjects + ")\n");
+                b.Append(" (Stale duration: " + this.staleDuration + ")\n");
                 b.Append("Available: (" + available.Count + ")\n");
                 b.Append(available.ContentsToString(","));
                 b.Append("Active: (" + inUse.Count + ")\n");

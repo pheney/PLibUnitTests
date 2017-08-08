@@ -29,6 +29,7 @@ namespace PLib.Pooling
         //	Data Libraries		//
         //////////////////////////
 
+        public const int UNLIMITED = -1;
         private static Dictionary<int, IPool> pools = new Dictionary<int, IPool>();
 
         /// <summary>
@@ -54,8 +55,6 @@ namespace PLib.Pooling
         //////////////////////
         //	Public API		//
         //////////////////////
-
-        public const int UNLIMITED = -1;
 
         /// <summary>
         /// 2016-2-17
@@ -359,7 +358,7 @@ namespace PLib.Pooling
 
                 float delay = Mathf.Min(1 / 60f, duration / count);
 
-                PCoroutine c = GetCoroutineRunner();
+                PCoroutine c = PCoroutine.GetCoroutineRunner(prefab.name);
                 c.StartCoroutineDelegate(PrewarmEnumerator(count, delay));
             }
 
@@ -398,15 +397,21 @@ namespace PLib.Pooling
             #region Option: Quantity-based Destruction
 
             /// <summary>
-            /// 2017-8-4
+            /// 2017-8-8
             /// Sets the maximum pool size for this GameObject.
-            /// Use -1 to indicate unlimited pool size.
+            /// Use PPool.UNLIMITED (-1) to indicate unlimited pool size.
+            /// 
+            /// When the new size is fewer than the existing number of items
+            /// in the pool, the pool will automatically begins to cull excess
+            /// items as they are recycled until the pool size is reduced to
+            /// the new maximum.
             /// </summary>
             public void MaxSize(int size)
             {
                 int originalSize = this.maxObjects;
                 this.maxObjects = size;
-                if (this.maxObjects < originalSize && size != UNLIMITED) Cull();
+                if (size == UNLIMITED) return;
+                if (this.maxObjects < originalSize) Cull();
             }
 
             /// <summary>
@@ -422,7 +427,7 @@ namespace PLib.Pooling
                 //  if the pool size is set to 'infinite' then do nothing
                 if (this.maxObjects == UNLIMITED) return;
                 
-                PCoroutine c = GetCoroutineRunner();
+                PCoroutine c = PCoroutine.GetCoroutineRunner(prefab.name);
                 c.StartCoroutineDelegate(CullEnumerator(immediate));
             }
 
@@ -570,7 +575,7 @@ namespace PLib.Pooling
             {
                 if (this.staleDuration == UNLIMITED) return;
 
-                PCoroutine c = GetCoroutineRunner();
+                PCoroutine c = PCoroutine.GetCoroutineRunner(prefab.name);
                 c.StartCoroutineDelegate(ExpireEnumerator(immediate));
             }
 
@@ -629,27 +634,6 @@ namespace PLib.Pooling
                 }
             }
 
-            #endregion
-            #region Helpers
-
-            /// <summary>
-            /// 2017-8-8
-            /// Creates a temporary GameObject and attaches a PCoroutine 
-            /// MonoBehaviour. This is used to run coroutines for delayed
-            /// actions. The GameObject deletes itself once complete.
-            /// </summary>
-            private PCoroutine GetCoroutineRunner()
-            {
-                //  Create a game object with no renderer or geometry
-                GameObject g = new GameObject("_CoroutineRunner_" + prefab.name);
-
-                //  Attach a PCoroutine MonoBehavior to the GameObject
-                PCoroutine pcoroutine = g.AddComponent<PCoroutine>();
-
-                //  Return a reference to the PCoroutine
-                return pcoroutine;
-            }
-            
             #endregion
             #region Diagnostic
 
