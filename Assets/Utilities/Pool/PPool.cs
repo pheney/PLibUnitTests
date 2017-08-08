@@ -6,19 +6,19 @@ using System.Threading;
 using System;
 using System.Linq;
 using System.Collections;
+using Random = UnityEngine.Random;
 
 namespace PLib.Pooling
 {
     /// <summary>
-    /// 2017-8-7
-    /// 
+    /// 2017-8-8
     /// Manager object for GameObject pooling. 
-    /// This manages a dictionary of individual Pools for each type of object. Objects
-    /// are distinguished by their Hashcode.
+    /// This manages a dictionary of individual Pools for each type of object. 
+    /// Prefab objects are distinguished by their Hashcode.
     /// 
-    /// To use with GameObjects:
-    ///     instead of "Instantiate(prefab)", simply use "PPool.Get(prefab)"
-    ///     instead of "Destroy(item)", simply use "PPool.Put(item)"
+    /// To use:
+    ///     instead of "Instantiate(prefab)", use "PPool.Get(prefab)"
+    ///     instead of "Destroy(item)", use "PPool.Put(item)"
     ///     
     /// That's it. Everything else is managed behind the scenes.
     /// </summary>
@@ -121,7 +121,8 @@ namespace PLib.Pooling
                 if (result) break;
             }
 
-            if (!result) { 
+            if (!result)
+            {
                 MonoBehaviour.Destroy(item);
             }
 
@@ -231,10 +232,10 @@ namespace PLib.Pooling
         {
             #region Data
 
-            private GameObject model;
-            protected int max;
-            protected Dictionary<int, float> staleTime;
-            protected float stale;
+            private GameObject prefab;
+            protected int maxObjects;
+            protected Dictionary<int, float> recycleTime;
+            protected float staleDuration;
             protected List<GameObject> available;
             protected List<GameObject> inUse;
 
@@ -246,10 +247,10 @@ namespace PLib.Pooling
             /// </summary>
             public Pool(GameObject prefab)
             {
-                this.staleTime = new Dictionary<int, float>();
+                this.recycleTime = new Dictionary<int, float>();
                 this.available = new List<GameObject>();
                 this.inUse = new List<GameObject>();
-                this.model = prefab;
+                this.prefab = prefab;
                 this.MaxSize(UNLIMITED);
                 this.StaleDuration(UNLIMITED);
             }
@@ -269,7 +270,7 @@ namespace PLib.Pooling
             public object Get()
             {
                 //  when the number of items in use is at max, return null
-                if (max > 0 && inUse.Count == max) return null;
+                if (maxObjects > 0 && inUse.Count == maxObjects) return null;
 
                 GameObject item = null;
 
@@ -285,8 +286,8 @@ namespace PLib.Pooling
                 else
                 {
                     //  create a new item
-                    item = MonoBehaviour.Instantiate(model);
-                    item.name = model.name;
+                    item = MonoBehaviour.Instantiate(prefab);
+                    item.name = prefab.name;
                 }
                 this.inUse.Add(item);
                 item.SetActive(true);
@@ -357,49 +358,39 @@ namespace PLib.Pooling
                 if (duration <= 0) return;
 
                 float delay = Mathf.Min(1 / 60f, duration / count);
-                Action<int> a = PrewarmImmediate;
 
-                PCoroutine c = CreateCoroutineRunner();
-                c.StartCoroutineDelegate(Loop(count, delay, a));
+                PCoroutine c = GetCoroutineRunner();
+                c.StartCoroutineDelegate(PrewarmEnumerator(count, delay));
+            }
+
+            /// <summary>
+            /// 2017-8-8
+            /// Coroutine that executes PrewarmImmediate over time.
+            /// </summary>
+            /// <param name="count">Quantity of items to instantiate</param>
+            /// <param name="delay">Amount of time to spread instantiation across</param>
+            private IEnumerator PrewarmEnumerator(int count, float delay)
+            {
+                for (int i = 0; i < count; i++)
+                {
+                    PrewarmImmediate(1);
+                    yield return new WaitForSeconds(delay);
+                }
             }
 
             /// <summary>
             /// 2017-8-3
             /// Pre-instantiates a number of items for the pool.
             /// The generation is done immediately, during a single frame.
+            /// Will not exceed item limit, if set.
             /// </summary>
             /// <param name="count"></param>
             private void PrewarmImmediate(int count = 1)
             {
                 int total = this.available.Count + this.inUse.Count;
-                for (int i = 0; i < count && ((total + i) < max || max == UNLIMITED); i++)
+                for (int i = 0; i < count && ((total + i) < maxObjects || maxObjects == UNLIMITED); i++)
                 {
-                    this.Put(MonoBehaviour.Instantiate(model));
-                }
-            }
-
-            /// <summary>
-            /// Creates a temporary GameObject that runs a coroutine for delayed
-            /// actions. The GameObject deletes itself once complete.
-            /// </summary>
-            private PCoroutine CreateCoroutineRunner()
-            {
-                //  Create a game object with no renderer or geometry
-                GameObject g = new GameObject();
-
-                //  Attach a PCoroutine MonoBehavior to the GameObject
-                PCoroutine pcoroutine = g.AddComponent<PCoroutine>();
-
-                //  Return a reference to the PCoroutine
-                return pcoroutine;
-            } 
-
-            private IEnumerator Loop(int count, float delay, Action<int> action)
-            {
-                for (int i = 0; i< count; i++)
-                {
-                    action(1);
-                    yield return new WaitForSeconds(delay);
+                    this.Put(MonoBehaviour.Instantiate(prefab));
                 }
             }
 
@@ -413,9 +404,9 @@ namespace PLib.Pooling
             /// </summary>
             public void MaxSize(int size)
             {
-                int originalSize = this.max;
-                this.max = size;
-                if (this.max < originalSize && size != UNLIMITED) Cull();
+                int originalSize = this.maxObjects;
+                this.maxObjects = size;
+                if (this.maxObjects < originalSize && size != UNLIMITED) Cull();
             }
 
             /// <summary>
@@ -429,24 +420,29 @@ namespace PLib.Pooling
             public void Cull(bool immediate = false)
             {
                 //  if the pool size is set to 'infinite' then do nothing
-                if (this.max == UNLIMITED) return;
+                if (this.maxObjects == UNLIMITED) return;
+                
+                PCoroutine c = GetCoroutineRunner();
+                c.StartCoroutineDelegate(CullEnumerator(immediate));
+            }
 
-                //TimeSpan timeout = TimeSpan.FromSeconds(0.1f);
-                //Task t = Task.Run(() =>
-                //{
+            /// <summary>
+            /// 2017-8-8
+            /// Coroutine that executes CullImmediate() over time.
+            /// </summary>
+            /// <param name="immediate">Cull everything at once</param>
+            private IEnumerator CullEnumerator(bool immediate)
+            {
                 //  loop until the pool is culled to the appropriate amount
-                for (int i = this.max; i < (this.available.Count + this.inUse.Count)
-                        && this.max != UNLIMITED; i++)
+                while (this.maxObjects < (this.available.Count + this.inUse.Count))
                 {
                     CullImmediate(1);
 
-                    //if (immediate) continue;
+                    if (immediate) continue;
 
                     //  wait a few frames
-                    //Thread.Sleep(timeout);
+                    yield return new WaitForSeconds(Random.value + 0.1f);
                 }
-                //});
-                Debug.LogWarning("Pool.Cull() does not implement any sort of delay.");
             }
 
             /// <summary>
@@ -457,7 +453,7 @@ namespace PLib.Pooling
             private void CullImmediate(int count = 1)
             {
                 //  if the pool size is set to 'infinite' then abort culling
-                if (this.max == UNLIMITED) return;
+                if (this.maxObjects == UNLIMITED) return;
 
                 //  loop until the pool is culled to the appropriate amount
                 for (int i = 0; i < count && this.available.Count > 0; i++)
@@ -476,23 +472,23 @@ namespace PLib.Pooling
             /// Sets a "stale" duration for unused objects. Any object that remains
             /// unused longer than this time is removed from the pool. Removing objects
             /// from the pool is counter to the pupose of using a pool, so the stale
-            /// duration should be relatively high to prevent GC.
+            /// duration should be relatively high to minimize the impact of GC.
             /// </summary>
             public void StaleDuration(float duration)
             {
-                float original = this.stale;
-                this.stale = duration;
+                float original = this.staleDuration;
+                this.staleDuration = duration;
 
                 //  Set to "no limit"
-                if (this.stale == UNLIMITED)
+                if (this.staleDuration == UNLIMITED)
                 {
                     //  Empty the stale timestamps
-                    this.staleTime.Clear();
+                    this.recycleTime.Clear();
                 }
                 else
                 {
                     //  Stale time reduced
-                    if (this.stale < original)
+                    if (this.staleDuration < original)
                     {
                         //  Check if any existing timestamp are now stale
                         Expire();
@@ -501,7 +497,7 @@ namespace PLib.Pooling
                     //  Ensure all available items have a stale timestamp
                     foreach (GameObject g in this.available)
                     {
-                        if (this.staleTime.ContainsKey(g.GetHashCode())) continue;
+                        if (this.recycleTime.ContainsKey(g.GetHashCode())) continue;
                         SetRecycleTime(g);
                     }
                 }
@@ -514,20 +510,23 @@ namespace PLib.Pooling
             /// </summary>
             private void SetRecycleTime(GameObject item)
             {
-                if (this.stale == UNLIMITED) return;
-                staleTime.Add(item.GetHashCode(), Time.time);
+                if (this.staleDuration == UNLIMITED) return;
+                recycleTime.Add(item.GetHashCode(), Time.time);
             }
 
             /// <summary>
+            /// 2017-8-8
             /// Returns the expiration time (in seconds) for the item.
             /// Returns -1 when the Pool object is set to UNLIMITED stale times.
-            /// Returns -1 when the item is in use (thus, not in the pool).
+            /// Returns -1 when the item is in use.
+            /// Returns -1 when the item does not come from this pool.
             /// </summary>
             private float GetExpireTime(GameObject item)
             {
-                if (this.stale == UNLIMITED) return -1;
+                if (this.staleDuration == UNLIMITED) return -1;
                 if (this.inUse.Contains(item)) return -1;
-                return staleTime[item.GetHashCode()] + this.stale;
+                if (!this.available.Contains(item)) return -1;
+                return recycleTime[item.GetHashCode()] + this.staleDuration;
             }
 
             /// <summary>
@@ -538,22 +537,26 @@ namespace PLib.Pooling
             /// </summary>
             private void RemoveTimestamp(GameObject item)
             {
-                if (this.stale == UNLIMITED) return;
                 int id = item.GetHashCode();
-                if (!staleTime.ContainsKey(id)) return;
-                staleTime.Remove(id);
+                if (!recycleTime.ContainsKey(id)) return;
+                recycleTime.Remove(id);
             }
 
             /// <summary>
-            /// 2017-8-4
+            /// 2017-8-8
             /// Indicates if the provided item has expired.
+            /// Returns false if the Pool is set to UNLIMITED stale duration.
+            /// Returns false if the item has no stale duration.
+            /// Returns false if the item did not come from this pool.
+            /// Returns false if the item is not stale.
+            /// Returns true if the itme is stale.
             /// </summary>
             private bool IsExpired(GameObject item)
             {
-                if (this.stale == UNLIMITED) return false;
+                if (this.staleDuration == UNLIMITED) return false;
 
                 int id = item.GetHashCode();
-                if (!this.staleTime.ContainsKey(id)) return false;
+                if (!this.recycleTime.ContainsKey(id)) return false;
 
                 return Time.time > GetExpireTime(item);
             }
@@ -565,33 +568,41 @@ namespace PLib.Pooling
             /// </summary>
             public void Expire(bool immediate = false)
             {
-                if (this.stale == UNLIMITED) return;
+                if (this.staleDuration == UNLIMITED) return;
 
-                //TimeSpan timeout = TimeSpan.FromSeconds(0.1f);
-                //Task t = Task.Run(() =>
-                //{
-                //  loop indefinitely, until all stale items are destroyed
-                while (this.staleTime.Count > 0)
+                PCoroutine c = GetCoroutineRunner();
+                c.StartCoroutineDelegate(ExpireEnumerator(immediate));
+            }
+
+            /// <summary>
+            /// 2017-8-8
+            /// Coroutine that executes ExpireImmediate() over time.
+            /// </summary>
+            /// <param name="immediate">Expire everything at once</param>
+            private IEnumerator ExpireEnumerator(bool immediate)
+            {
+                //  Loop indefinitely, 
+                //  Until all items with stale times are destroyed,
+                //  OR until there are no items with stale times.
+                while (this.recycleTime.Count > 0)
                 {
                     //  Convert the dictionary of expired times to a sortable object
-                    List<KeyValuePair<int, float>> sortedDict = this.staleTime.ToList();
+                    List<KeyValuePair<int, float>> sortedDict = this.recycleTime.ToList();
 
-                    //  sort stale times by value
+                    //  sort entries by time
                     sortedDict.Sort((l, r) => { return l.Value.CompareTo(r.Value); });
 
                     //  When the first timestamp in the sorted stale list has
                     //  not expired, then exit because nothing else has expired either.
-                    if ((sortedDict[0].Value + this.stale) > Time.time) return;
+                    if ((sortedDict[0].Value + this.staleDuration) > Time.time) yield break;
 
                     ExpireImmediate(1);
 
-                    //if (immediate) continue;
+                    if (immediate) continue;
 
                     //  wait a few frames
-                    //Thread.Sleep(timeout);
+                    yield return new WaitForSeconds(Random.Range(1,3f));
                 }
-                //});
-                Debug.LogWarning("Pool.Expire() does not implement any sort of delay.");
             }
 
             /// <summary>
@@ -611,13 +622,34 @@ namespace PLib.Pooling
 
                     if (Time.time < GetExpireTime(g)) continue;
 
-                    this.staleTime.Remove(g.GetHashCode());
+                    this.recycleTime.Remove(g.GetHashCode());
                     this.available.RemoveAt(index);
                     MonoBehaviour.Destroy(g);
                     expired++;
                 }
             }
 
+            #endregion
+            #region Helpers
+
+            /// <summary>
+            /// 2017-8-8
+            /// Creates a temporary GameObject and attaches a PCoroutine 
+            /// MonoBehaviour. This is used to run coroutines for delayed
+            /// actions. The GameObject deletes itself once complete.
+            /// </summary>
+            private PCoroutine GetCoroutineRunner()
+            {
+                //  Create a game object with no renderer or geometry
+                GameObject g = new GameObject("_CoroutineRunner_" + prefab.name);
+
+                //  Attach a PCoroutine MonoBehavior to the GameObject
+                PCoroutine pcoroutine = g.AddComponent<PCoroutine>();
+
+                //  Return a reference to the PCoroutine
+                return pcoroutine;
+            }
+            
             #endregion
             #region Diagnostic
 
@@ -632,9 +664,9 @@ namespace PLib.Pooling
             public new string ToString()
             {
                 StringBuilder b = new StringBuilder();
-                b.Append("Prefab: " + model.ToString());
-                b.Append(" (Max pool size: " + max + ")\n");
-                b.Append(" (Stale duration: " + this.stale + ")\n");
+                b.Append("Prefab: " + prefab.ToString());
+                b.Append(" (Max pool size: " + maxObjects + ")\n");
+                b.Append(" (Stale duration: " + this.staleDuration + ")\n");
                 b.Append("Available: (" + available.Count + ")\n");
                 b.Append(available.ContentsToString(","));
                 b.Append("Active: (" + inUse.Count + ")\n");
@@ -645,42 +677,4 @@ namespace PLib.Pooling
             #endregion
         }
     }
-
-    #region Pool Interface
-
-    public interface IPool
-    {
-        #region Basic Operations
-
-        object Get();
-        bool Put(object item);
-        void Clear(bool immediate);
-
-        #endregion
-        #region Option: Pre-generation of objects
-
-        void Prewarm(int count, float duration);
-
-        #endregion
-        #region Option: Quantity-based Destruction
-
-        void MaxSize(int size);
-        void Cull(bool immediate);
-
-        #endregion
-        #region Option: Time-based Destruction
-
-        void StaleDuration(float duration);
-        void Expire(bool immediate);
-
-        #endregion
-        #region Diagnostic
-
-        int Available();
-        int InUse();
-
-        #endregion
-    }
-
-    #endregion
 }

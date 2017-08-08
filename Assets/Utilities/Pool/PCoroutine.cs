@@ -14,23 +14,22 @@ namespace PLib
         {
             Debug.Log("StartCoroutineDelegate() called");
             c = StartCoroutine(ienumerator);
-            Debug.Log("Coroutine started. c is null? " + (c == null));
 
-            Debug.Log("Start DestroyWhenFinished() coroutine");
+            Debug.Log("DestroyWhenFinished() called");
             StartCoroutine(DestroyWhenFinished());
 
         }
-        
+
         private IEnumerator DestroyWhenFinished()
         {
-            Debug.Log("DestroyWhenFinished() called at " + Time.time);
+            Debug.Log("Enter DestroyWhenFinished() at " + Time.time);
             do
             {
-                yield return new WaitForSeconds(Random.value+1);
+                yield return new WaitForSeconds(Random.value + 1);
             } while (c != null);
 
-            Debug.Log("DestroyWhenFinished() complete at " + Time.time);
-            Destroy(gameObject, Random.value+0.1f);
+            Debug.Log("EXIT DestroyWhenFinished() at " + Time.time);
+            Destroy(gameObject, Random.value + 0.1f);
         }
     }
 }
