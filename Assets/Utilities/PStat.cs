@@ -237,16 +237,20 @@ namespace PLib.Statistics
         #region Extensions
 
         /// <summary>
+        /// 2017-8-8
         /// Returns the average of all the values in the rectangular array.
         /// </summary>
-        /// <param name="source"></param>
-        /// <returns></returns>
         public static float Average(this float[,] source)
         {
+            int length = source.GetLength(0);
+            int width = source.GetLength(1);
             float totalMean = 0;
-            foreach (float sample in source)
+            for (int i = 0; i < length; i++)
             {
-                totalMean += sample;
+                for (int j = 0; j < width; j++)
+                {
+                    totalMean += source[i, j];
+                }
             }
             totalMean /= source.Length;
             return totalMean;
