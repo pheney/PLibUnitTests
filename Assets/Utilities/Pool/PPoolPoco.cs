@@ -7,6 +7,7 @@ using System;
 using System.Linq;
 using System.Threading.Tasks;
 using Random = UnityEngine.Random;
+using System.Collections;
 
 namespace PLib.Pooling
 {
@@ -307,17 +308,24 @@ namespace PLib.Pooling
                 if (duration <= 0) return;
 
                 float delay = Mathf.Min(1 / 60f, duration / count);
-                TimeSpan timeout = TimeSpan.FromSeconds(delay);
-                Task.Factory.StartNew(() =>
+
+                PCoroutine c = PCoroutine.GetCoroutineRunner(typeof(T).ToString());
+                c.StartCoroutineDelegate(PrewarmEnumerator(count, delay));
+            }
+
+            /// <summary>
+            /// 2017-8-8
+            /// Coroutine that executes PrewarmImmediate over time.
+            /// </summary>
+            /// <param name="count">Quantity of items to instantiate</param>
+            /// <param name="delay">Amount of time to spread instantiation across</param>
+            private IEnumerator PrewarmEnumerator(int count, float delay)
+            {
+                for (int i = 0; i < count; i++)
                 {
-                    //  Create the things.
-                    //  Create no more than [count] things.
-                    for (int i = 0; i < count; i++)
-                    {
-                        PrewarmImmediate(1);
-                        Thread.Sleep(timeout);
-                    }
-                });
+                    PrewarmImmediate(1);
+                    yield return new WaitForSeconds(delay);
+                }
             }
 
             /// <summary>
@@ -362,22 +370,27 @@ namespace PLib.Pooling
                 //  if the pool size is set to 'infinite' then do nothing
                 if (this.maxObjects == UNLIMITED) return;
 
-                TimeSpan timeout;
-                Task.Factory.StartNew(() =>
+                PCoroutine c = PCoroutine.GetCoroutineRunner(typeof(T).ToString());
+                c.StartCoroutineDelegate(CullEnumerator(immediate));
+            }
+
+            /// <summary>
+            /// 2017-8-8
+            /// Coroutine that executes CullImmediate() over time.
+            /// </summary>
+            /// <param name="immediate">Cull everything at once</param>
+            private IEnumerator CullEnumerator(bool immediate)
+            {
+                //  loop until the pool is culled to the appropriate amount
+                while (this.maxObjects < (this.available.Count + this.inUse.Count))
                 {
-                    //  loop until the pool is culled to the appropriate amount
-                    for (int i = this.maxObjects; i < (this.available.Count + this.inUse.Count)
-                            && this.maxObjects != UNLIMITED; i++)
-                    {
-                        CullImmediate(1);
+                    CullImmediate(1);
 
-                        if (immediate) continue;
+                    if (immediate) continue;
 
-                        //  wait a few frames
-                        timeout = TimeSpan.FromSeconds(Random.value + 0.1f);
-                        Thread.Sleep(timeout);
-                    }
-                });
+                    //  wait a few frames
+                    yield return new WaitForSeconds(Random.value + 0.1f);
+                }
             }
 
             /// <summary>
@@ -496,31 +509,39 @@ namespace PLib.Pooling
             {
                 if (this.staleDuration == UNLIMITED) return;
 
-                TimeSpan timeout;
-                Task.Factory.StartNew(() =>
+                PCoroutine c = PCoroutine.GetCoroutineRunner(typeof(T).ToString());
+                c.StartCoroutineDelegate(ExpireEnumerator(immediate));
+            }
+
+            /// <summary>
+            /// 2017-8-8
+            /// Coroutine that executes ExpireImmediate() over time.
+            /// </summary>
+            /// <param name="immediate">Expire everything at once</param>
+            private IEnumerator ExpireEnumerator(bool immediate)
+            {
+                //  Loop indefinitely, 
+                //  Until all items with stale times are destroyed,
+                //  OR until there are no items with stale times.
+                while (this.recycleTime.Count > 0)
                 {
-                    //  loop indefinitely, until all stale items are destroyed
-                    while (this.recycleTime.Count > 0)
-                    {
-                        //  Convert the dictionary of expired times to a sortable object
-                        List<KeyValuePair<int, float>> sortedDict = this.recycleTime.ToList();
+                    //  Convert the dictionary of expired times to a sortable object
+                    List<KeyValuePair<int, float>> sortedDict = this.recycleTime.ToList();
 
-                        //  sort stale times by value
-                        sortedDict.Sort((l, r) => { return l.Value.CompareTo(r.Value); });
+                    //  sort entries by time
+                    sortedDict.Sort((l, r) => { return l.Value.CompareTo(r.Value); });
 
-                        //  When the first timestamp in the sorted stale list has
-                        //  not expired, then exit because nothing else has expired either.
-                        if ((sortedDict[0].Value + this.staleDuration) > Time.time) return;
+                    //  When the first timestamp in the sorted stale list has
+                    //  not expired, then exit because nothing else has expired either.
+                    if ((sortedDict[0].Value + this.staleDuration) > Time.time) yield break;
 
-                        ExpireImmediate(1);
+                    ExpireImmediate(1);
 
-                        if (immediate) continue;
+                    if (immediate) continue;
 
-                        //  wait a few frames
-                        timeout = TimeSpan.FromSeconds(Random.Range(1f, 3f));
-                        Thread.Sleep(timeout);
-                    }
-                });
+                    //  wait a few frames
+                    yield return new WaitForSeconds(Random.Range(1, 3f));
+                }
             }
 
             /// <summary>
