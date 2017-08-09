@@ -274,7 +274,7 @@ namespace PoolTest
 
             //  act
             PPocoPool.Prewarm<TestClass>(count);
-            PPocoPool.Clear<TestClass>(true);
+            PPocoPool.Clear<TestClass>();
             int total = PPocoPool.GetAvailable<TestClass>() + PPocoPool.GetInUse<TestClass>();
 
             //  assert
@@ -311,7 +311,7 @@ namespace PoolTest
         public void Get_ReturnsNullWhenAtMaxLimit()
         {
             //  setup
-            PPocoPool.Clear<TestClass>(true);
+            PPocoPool.Clear<TestClass>();
 
             //	arrange
             int count = 9;

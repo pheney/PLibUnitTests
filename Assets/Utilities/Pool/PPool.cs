@@ -73,9 +73,12 @@ namespace PLib.Pooling
         /// <returns></returns>
         public static GameObject Get(GameObject prefab, Vector3 position, Quaternion rotation)
         {
-            GameObject item = (GameObject)(GetPool(prefab) as Pool).Get();
-            item.transform.position = position;
-            item.transform.rotation = rotation;
+            GameObject item = Get(prefab);
+            if (item)
+            {
+                item.transform.position = position;
+                item.transform.rotation = rotation;
+            }
             return item;
         }
 
@@ -120,7 +123,14 @@ namespace PLib.Pooling
 
             if (!result)
             {
-                MonoBehaviour.Destroy(item);
+                if (Application.isEditor)
+                {
+                    MonoBehaviour.DestroyImmediate(item);
+                }
+                else
+                {
+                    MonoBehaviour.Destroy(item);
+                }
             }
 
             return result;
@@ -184,9 +194,9 @@ namespace PLib.Pooling
         /// Clears the pool. Destroys all objects in the pool, then
         ///	deletes the pool as well. This can be expensive.
         /// </summary>
-        public static void Clear(GameObject prefab, bool immediate = false)
+        public static void Clear(GameObject prefab)
         {
-            GetPool(prefab).Clear(immediate);
+            GetPool(prefab).Clear();
         }
 
         /// <summary>
@@ -263,11 +273,10 @@ namespace PLib.Pooling
             /// Position will be (0,0,0), rotation will be (0,0,0)
             /// Scale is unaffected.
             /// </summary>
-            /// <returns></returns>
             public object Get()
             {
                 //  when the number of items in use is at max, return null
-                if (maxObjects > 0 && inUse.Count == maxObjects) return null;
+                if (maxObjects != UNLIMITED && maxObjects <= inUse.Count) return null;
 
                 GameObject item = null;
 
@@ -318,26 +327,32 @@ namespace PLib.Pooling
             /// Clears this instance. Destroys all game objects maintained
             ///	by this object.
             /// </summary>
-            public void Clear(bool immediate = false)
+            public void Clear()
             {
-                foreach (GameObject g in this.available)
-                    if (immediate)
-                    {
-                        MonoBehaviour.DestroyImmediate(g);
-                    }
-                    else
-                    {
-                        MonoBehaviour.Destroy(g);
-                    }
-                foreach (GameObject g in this.inUse)
-                    if (immediate)
-                    {
-                        MonoBehaviour.DestroyImmediate(g);
-                    }
-                    else
-                    {
-                        MonoBehaviour.Destroy(g);
-                    }
+                while (this.Available() > 0)
+                {
+                    GameObject g = this.available[0];
+                    this.available.RemoveAt(0);
+                    DestroyInstance(g);
+                }
+                while (this.InUse() > 0)
+                {
+                    GameObject g = this.inUse[0];
+                    this.inUse.RemoveAt(0);
+                    DestroyInstance(g);
+                }
+            }
+
+            /// <summary>
+            /// 2017-8-8
+            /// Handles actual destruction of game objects. Works in editor
+            /// so unit tests can be conducted.
+            /// </summary>
+            /// <param name="instance"></param>
+            private void DestroyInstance(GameObject instance)
+            {
+                if (Application.isEditor) MonoBehaviour.DestroyImmediate(instance);
+                else MonoBehaviour.Destroy(instance);
             }
 
             #endregion
@@ -424,7 +439,7 @@ namespace PLib.Pooling
             {
                 //  if the pool size is set to 'infinite' then do nothing
                 if (this.maxObjects == UNLIMITED) return;
-                
+
                 PCoroutine c = PCoroutine.GetCoroutineRunner(prefab.name);
                 c.StartCoroutineDelegate(CullEnumerator(immediate));
             }
@@ -463,7 +478,7 @@ namespace PLib.Pooling
                 {
                     GameObject g = this.available[0];
                     this.available.RemoveAt(0);
-                    MonoBehaviour.Destroy(g);
+                    DestroyInstance(g);
                 }
             }
 
@@ -541,8 +556,7 @@ namespace PLib.Pooling
             private void RemoveTimestamp(GameObject item)
             {
                 int id = item.GetHashCode();
-                if (!recycleTime.ContainsKey(id)) return;
-                recycleTime.Remove(id);
+                if (recycleTime.ContainsKey(id)) recycleTime.Remove(id);
             }
 
             /// <summary>
@@ -604,7 +618,7 @@ namespace PLib.Pooling
                     if (immediate) continue;
 
                     //  wait a few frames
-                    yield return new WaitForSeconds(Random.Range(1,3f));
+                    yield return new WaitForSeconds(Random.Range(1, 3f));
                 }
             }
 
@@ -627,7 +641,7 @@ namespace PLib.Pooling
 
                     this.recycleTime.Remove(g.GetHashCode());
                     this.available.RemoveAt(index);
-                    MonoBehaviour.Destroy(g);
+                    DestroyInstance(g);
                     expired++;
                 }
             }

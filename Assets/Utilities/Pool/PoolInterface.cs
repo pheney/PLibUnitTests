@@ -6,7 +6,7 @@
 
         object Get();
         bool Put(object item);
-        void Clear(bool immediate);
+        void Clear();
 
         #endregion
         #region Option: Pre-generation of objects

@@ -54,7 +54,9 @@ namespace PLib.Pooling
             } while (c != null);
 
             Debug.Log("EXIT DestroyWhenFinished() at " + Time.time);
-            Destroy(gameObject, Random.value + 0.1f);
+
+            if (Application.isEditor) DestroyImmediate(gameObject);
+            else Destroy(gameObject, Random.value + 0.1f);
         }
     }
 }

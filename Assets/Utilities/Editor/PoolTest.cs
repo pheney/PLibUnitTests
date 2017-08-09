@@ -101,10 +101,11 @@ namespace PoolTest
             instance = PPool.Get(prefab, position, rotation);
             Vector3 posResult = instance.transform.position;
             Quaternion qtResult = instance.transform.rotation;
+            float angle = Quaternion.Angle(rotation, qtResult);
 
             //  assert
             Assert.AreEqual(position, posResult, "Positions are not the same");
-            Assert.AreEqual(rotation, qtResult, "Rotations are not the same");
+            Assert.AreEqual(0, angle, "Rotations are not the same");
         }
 
         [Test]
@@ -139,9 +140,15 @@ namespace PoolTest
             //  act
             bool result = PPool.Put(nonPoolObject);
 
+            //  Force the use of the Unity overloaded operator == when checking
+            //  for destroyed objects. (Destroy() does not *actually* destroy the object,
+            //  it just tells Unity to treat the object AS destroyed for the moment.
+            //  Ref: https://gamedev.stackexchange.com/questions/115716/how-to-make-an-assert-isnull-test-pass-when-the-value-is-reported-as-null
+            bool isDestroyed = nonPoolObject == null;
+
             //  assert
             Assert.IsFalse(result, "Pool indicated object was reclaimed.");
-            Assert.IsNull(nonPoolObject, "Object was not Destroyed");
+            Assert.IsTrue(isDestroyed, "Object was not Destroyed");
         }
 
         [Test]
@@ -248,8 +255,8 @@ namespace PoolTest
             PPool.Clear(prefab);
 
             //  arrange
-            int count = 9;
-            float duration = 7; //  second
+            int count = 8;
+            float duration = 3; //  second
 
             //  act
             PPool.Prewarm(prefab, count, duration);
@@ -259,8 +266,8 @@ namespace PoolTest
             int complete = PPool.GetAvailable(prefab);
 
             //  assert
-            Assert.IsTrue(initial<count, "Partial generaton contains too many objects");
-            Assert.AreEqual(count, complete, "Complete generation contains wrong number of objects");
+            Assert.AreEqual((int)(0.5f * count), initial, "Partial generaton contains wrong number of objects");
+            Assert.AreEqual(count, complete, "Contains wrong number of objects");
         }
 
         [Test]
@@ -289,11 +296,17 @@ namespace PoolTest
             PPool.Clear(prefab);
 
             //  arrange
+            List<GameObject> list = new List<GameObject>();
             int count = 9;
 
             //  act
-            PPool.Prewarm(prefab, count);
-            PPool.Clear(prefab, true);
+            for (int i = 0; i < count; i++)
+            {
+                GameObject g = PPool.Get(prefab);
+                if (g != null) list.Add(g);
+            }
+            for (int i = 0; i < count; i++) PPool.Put(list[0]);
+            PPool.Clear(prefab);
             int total = PPool.GetAvailable(prefab) + PPool.GetInUse(prefab);
 
             //  assert
@@ -330,7 +343,7 @@ namespace PoolTest
         public void Get_ReturnsNullWhenAtMaxLimit()
         {
             //  setup
-            PPool.Clear(prefab, true);
+            PPool.Clear(prefab);
 
             //	arrange
             int count = 9;
@@ -355,12 +368,19 @@ namespace PoolTest
             PPool.Clear(prefab);
 
             //  arrange
+            List<GameObject> list = new List<GameObject>();
             float duration = 1;    //  seconds
             PPool.SetLimit(prefab, staleDuration: duration);
             int count = 9;
 
             //  act            
-            PPool.Prewarm(prefab, count);
+            for (int i = 0; i < count; i++)
+            {
+                GameObject g = PPool.Get(prefab);
+                if (g != null) list.Add(g);
+            }
+
+            for (int i = 0; i < count; i++) PPool.Put(list[0]);
             PPool.SetLimit(prefab, staleDuration: PPool.UNLIMITED);
             Delay(duration + 0.1f);
             int available = PPool.GetAvailable(prefab);
@@ -382,15 +402,28 @@ namespace PoolTest
 
             //  act
             PPool.SetLimit(prefab, poolSize: limit);
-            PPool.Prewarm(prefab, count);
-            int countWhileLimited = PPool.GetAvailable(prefab);
+            for (int i = 0; i < count; i++)
+            {
+                GameObject g = PPool.Get(prefab);
+                if (g != null) list.Add(g);
+            }
+            int createdWhileLimted = list.Count;
+            int countWhileLimited = PPool.GetInUse(prefab);
+
             PPool.SetLimit(prefab, poolSize: PPool.UNLIMITED);
-            PPool.Prewarm(prefab, count);
-            int countUnlimited = PPool.GetAvailable(prefab);
+            for (int i = 0; i < count; i++)
+            {
+                GameObject g = PPool.Get(prefab);
+                if (g != null) list.Add(g);
+            }
+            int createUnlimited = list.Count;
+            int countUnlimited = PPool.GetInUse(prefab);
 
             //  assert
-            Assert.AreEqual(limit, countWhileLimited, "Object creation not correctly limited");
-            Assert.AreEqual(count, countUnlimited, "Unlimited object creation count incorrect");
+            Assert.AreEqual(limit, createdWhileLimted, "Wrong number created while limited");
+            Assert.AreEqual(limit, countWhileLimited, "Pool reports wrong amount created while limited");
+            Assert.AreEqual(limit + count, createUnlimited, "Unlimited object creation count incorrect");
+            Assert.AreEqual(limit + count, countUnlimited, "Pool reports wrong amount created while unlimited");
         }
 
         #endregion
@@ -411,5 +444,4 @@ namespace PoolTest
 
         #endregion
     }
-
 }

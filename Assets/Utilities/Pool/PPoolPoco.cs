@@ -59,9 +59,9 @@ namespace PLib.Pooling
         /// Clears all pools. Destroys all objects in the pools, then
         ///	deletes the pools as well. This can be expensive.
         /// </summary>
-        public static void Clear<T>(bool immediate = false) where T : new()
+        public static void Clear<T>() where T : new()
         {
-            GetPool<T>().Clear(immediate);
+            GetPool<T>().Clear();
         }
 
         /// <summary>
@@ -284,7 +284,7 @@ namespace PLib.Pooling
             /// Clears this instance. Destroys all game objects maintained
             ///	by this object.
             /// </summary>
-            public void Clear(bool immediate = false)
+            public void Clear()
             {
                 this.available.Clear();
                 this.inUse.Clear();
