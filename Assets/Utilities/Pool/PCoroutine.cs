@@ -31,8 +31,27 @@ namespace PLib.Pooling
         /// </summary>
         public void StartCoroutineDelegate(IEnumerator ienumerator)
         {
-            c = StartCoroutine(ienumerator);
-            StartCoroutine(DestroyWhenFinished());
+            //c = StartCoroutine(ienumerator);
+            //StartCoroutine(DestroyWhenFinished());
+            StartCoroutine(DestroyWhenFinished(ienumerator));
+        }
+
+        /// <summary>
+        /// 2017-8-8
+        /// Monitors the status of the running coroutine by checking 
+        /// every few seconds (1~3). Once the coroutine has terminated,
+        /// this destroys this GameObject.
+        /// </summary>
+        private IEnumerator DestroyWhenFinished(IEnumerator ienumerator)
+        {
+            IEnumerator routine = ienumerator;
+            while (routine != null)
+            {
+                yield return ienumerator;
+            }
+
+            if (Application.isEditor) DestroyImmediate(gameObject);
+            else Destroy(gameObject, Random.value + 0.1f);
         }
 
         /// <summary>
