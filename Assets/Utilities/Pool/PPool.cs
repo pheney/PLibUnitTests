@@ -317,7 +317,7 @@ namespace PLib.Pooling
                 g.SetActive(false);
                 this.inUse.Remove(g);
                 this.available.Add(g);
-                SetRecycleTime(g);
+                SetTimestamp(g);
                 return true;
             }
 
@@ -537,10 +537,12 @@ namespace PLib.Pooling
                     }
 
                     //  Ensure all available items have a stale timestamp
-                    foreach (GameObject g in this.available)
+                    GameObject g;
+                    for (int i = 0; i < this.available.Count; i++)
                     {
+                        g = this.available[i];
                         if (this.recycleTime.ContainsKey(g.GetHashCode())) continue;
-                        SetRecycleTime(g);
+                        SetTimestamp(g);
                     }
                 }
             }
@@ -550,7 +552,7 @@ namespace PLib.Pooling
             /// Enters a time stamp for the GameObject that indicates when the
             /// object was recycled (returned to this pool).
             /// </summary>
-            private void SetRecycleTime(GameObject item)
+            private void SetTimestamp(GameObject item)
             {
                 if (this.staleDuration == UNLIMITED) return;
                 recycleTime.Add(item.GetHashCode(), Time.time);
@@ -622,9 +624,8 @@ namespace PLib.Pooling
             /// <param name="immediate">Expire everything at once</param>
             private IEnumerator ExpireEnumerator(bool immediate)
             {
-                //  Loop indefinitely, 
-                //  Until all items with stale times are destroyed,
-                //  OR until there are no items with stale times.
+                //  Loop until all items with stale times are destroyed,
+                //  OR until there are no items with timestamps.
                 while (this.recycleTime.Count > 0)
                 {
                     //  Convert the dictionary of expired times to a sortable object
@@ -653,20 +654,28 @@ namespace PLib.Pooling
             /// </summary>
             private void ExpireImmediate(int count = 1)
             {
-                //  Iterate the available list.
-                //  Exit when "count" items have been expired OR
-                //      the beginning of list is reached.
-                for (int i = this.available.Count, expired = 0; i > 0 && expired < count; i--)
+                //  Iterate the list of available objects.
+                //  Remove expired items until the required count is reached
+                //  OR until the end of the list is reached.
+                for (int i = 0, expired = 0; i < this.available.Count && expired < count; /**/)
                 {
-                    int index = i - 1;
-                    GameObject g = this.available[index];
+                    GameObject g = this.available[i];
 
-                    if (Time.time < GetExpireTime(g)) continue;
-
-                    this.recycleTime.Remove(g.GetHashCode());
-                    this.available.RemoveAt(index);
-                    DestroyInstance(g);
-                    expired++;
+                    //  check expiration
+                    if (Time.time < GetExpireTime(g))
+                    {
+                        //  item has not expired, so move to next
+                        i++;
+                        continue;
+                    }
+                    else
+                    {
+                        //  item has expired, so remove and destroy it
+                        this.recycleTime.Remove(g.GetHashCode());
+                        this.available.RemoveAt(i);
+                        DestroyInstance(g);
+                        expired++;
+                    }
                 }
             }
 

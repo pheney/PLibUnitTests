@@ -240,11 +240,14 @@ namespace PoolTest
 
             //  act
             GameObject instance = PPool.Get(prefab);
-            PPool.Put(instance);
+            bool putResult = PPool.Put(instance);
+            Delay(duration + 1);
+            PPool.Expire(prefab);
             Delay(duration + 1);
             int available = PPool.GetAvailable(prefab);
 
             //  assert
+            Assert.IsTrue(putResult, "Pool indicates item was destroyed");
             Assert.AreEqual(0, available, "Pool kept objects past expiration");
         }
 
@@ -378,15 +381,11 @@ namespace PoolTest
             int count = 9;
 
             //  act            
-            for (int i = 0; i < count; i++)
-            {
-                GameObject g = PPool.Get(prefab);
-                if (g != null) list.Add(g);
-            }
-
+            for (int i = 0; i < count; i++) list.Add(PPool.Get(prefab));
             for (int i = 0; i < count; i++) PPool.Put(list[0]);
+
             PPool.SetLimit(prefab, staleDuration: PPool.UNLIMITED);
-            Delay(duration + 0.1f);
+            Delay(duration + 1);
             int available = PPool.GetAvailable(prefab);
 
             //  assert
