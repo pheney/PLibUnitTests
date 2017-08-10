@@ -241,7 +241,7 @@ namespace PoolTest
             //  act
             GameObject instance = PPool.Get(prefab);
             PPool.Put(instance);
-            Delay(duration + 0.1f);
+            Delay(duration + 1);
             int available = PPool.GetAvailable(prefab);
 
             //  assert
@@ -256,17 +256,18 @@ namespace PoolTest
 
             //  arrange
             int count = 8;
-            float duration = 3; //  second
+            int halfCount = (int)(0.5f * count);
+            float duration = 4; //  second
 
             //  act
             PPool.Prewarm(prefab, count, duration);
             Delay(duration * 0.5f);
-            int initial = PPool.GetAvailable(prefab);
+            int partial = PPool.GetAvailable(prefab);
             Delay(duration);
             int complete = PPool.GetAvailable(prefab);
 
             //  assert
-            Assert.AreEqual((int)(0.5f * count), initial, "Partial generaton contains wrong number of objects");
+            Assert.AreEqual(halfCount, partial, "Partial generaton contains wrong number of objects");
             Assert.AreEqual(count, complete, "Contains wrong number of objects");
         }
 
@@ -279,7 +280,10 @@ namespace PoolTest
             //  arrange
             int count = 9;
             int reduced = count - 1;
-            PPool.Prewarm(prefab, count);
+            List<GameObject> list = new List<GameObject>();
+            for (int i = 0; i < count; i++) list.Add(PPool.Get(prefab));
+            for (int i = 0; i < count; i++) PPool.Put(list[0]);
+            list.Clear();
 
             //  act
             PPool.SetLimit(prefab, poolSize: reduced);
