@@ -6,6 +6,7 @@ using NUnit.Framework;
 using PLib.Pooling;
 using Random = UnityEngine.Random;
 using System.Diagnostics;
+using Debug = UnityEngine.Debug;
 
 namespace PLib
 {
@@ -397,14 +398,17 @@ namespace PoolTest
             //  arrange
             List<GameObject> list = new List<GameObject>();
             float duration = 0;    //  seconds
-            PPool.SetLimit(prefab, staleDuration: duration);
             int count = 9;
 
-            //  act            
+            //  act (create objects with timestamps)           
+            PPool.SetLimit(prefab, staleDuration: duration);
             for (int i = 0; i < count; i++) list.Add(PPool.Get(prefab));
             for (int i = 0; i < count; i++) PPool.Put(list[0]);
             list.Clear();
 
+            //  act
+            //  Use SetStale(unlimited), which should remove timestamps.
+            Debug.Log("<<< SetStale to UNLIMITED >>>");
             PPool.SetLimit(prefab, staleDuration: PPool.UNLIMITED);
             int available = PPool.GetAvailable(prefab);
 
@@ -479,7 +483,7 @@ namespace PoolTest
                 stopwatch.Start();
                 while (stopwatch.ElapsedMilliseconds < 1000) ;
                 stopwatch.Stop();
-                UnityEngine.Debug.Log("Tick " + i + " seconds");
+                Debug.Log("Tick " + i + " seconds");
             }
 
             float remainder = duration - Mathf.FloorToInt(duration);
@@ -488,7 +492,7 @@ namespace PoolTest
             stopwatch.Start();
             while (stopwatch.ElapsedMilliseconds < remainder * 1000) ;
             stopwatch.Stop();
-            UnityEngine.Debug.Log("Tick +" + remainder + " seconds");
+            Debug.Log("Tick +" + remainder + " seconds");
         }
 
         #endregion

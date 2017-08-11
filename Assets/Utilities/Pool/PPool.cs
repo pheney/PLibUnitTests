@@ -499,7 +499,7 @@ namespace PLib.Pooling
             #region Option: Time-based Destruction
 
             /// <summary>
-            /// 2017-8-2
+            /// 2017-8-11
             /// Sets a "stale" duration for unused objects. Any object that remains
             /// unused longer than this time is removed from the pool. Removing objects
             /// from the pool is counter to the pupose of using a pool, so the stale
@@ -507,16 +507,30 @@ namespace PLib.Pooling
             /// </summary>
             public void StaleDuration(float duration)
             {
+                #region Debug logging
+
+                Debug.Log(string.Format("StaleDuration({0}) called", duration));
+                Debug.Log(string.Format("Timestamp list size: {0}", this.recycleTime.Count));
+                foreach (int id in this.recycleTime.Keys)
+                {
+                    Debug.Log(string.Format("Item {0} recycled at {1} ({2})",
+                        id, this.recycleTime[id], IsExpired(id) ? "expired" : "ok"));
+                }
+
+                #endregion
+
                 float original = this.staleDuration;
                 this.staleDuration = duration;
 
                 //  Set to "no limit"
                 if (this.staleDuration == UNLIMITED)
                 {
-                    //  Empty the stale timestamps
+                    //  Remove all timestamps
                     this.recycleTime.Clear();
+                    return;
                 }
-                else
+
+                if (this.staleDuration != UNLIMITED)
                 {
                     //  Stale time reduced
                     if (this.staleDuration < original)
@@ -525,11 +539,13 @@ namespace PLib.Pooling
                         Expire(true);
                     }
 
-                    //  Ensure all available items have a stale timestamp
+                    //  Ensure all available items have a timestamp
                     GameObject g;
                     for (int i = 0; i < this.available.Count; i++)
                     {
                         g = this.available[i];
+
+                        //  skip items that already have a timestamp
                         if (this.recycleTime.ContainsKey(g.GetHashCode())) continue;
                         SetTimestamp(g);
                     }
@@ -548,18 +564,35 @@ namespace PLib.Pooling
             }
 
             /// <summary>
-            /// 2017-8-8
+            /// 2017-8-11    
             /// Returns the expiration time (in seconds) for the item.
+            /// The expiration time is calculated as follows:
+            ///     item recycle timestamp + current stale duration
             /// Returns -1 when the Pool object is set to UNLIMITED stale times.
-            /// Returns -1 when the item is in use.
-            /// Returns -1 when the item does not come from this pool.
+            /// Returns -1 when the item does not have a recycle timestamp.
             /// </summary>
+            /// <param name="item">An intance supplied by this recycler</param>
+            /// <returns>The game time when this item will (or did) expire</returns>
             private float GetExpireTime(GameObject item)
             {
+                return GetExpireTime(item.GetHashCode());
+            }
+
+            /// <summary>
+            /// 2017-8-11
+            /// Returns the expiration time (in seconds) for the item.
+            /// The expiration time is calculated as follows:
+            ///     item recycle timestamp + current stale duration
+            /// Returns -1 when the Pool object is set to UNLIMITED stale times.
+            /// Returns -1 when the item does not have a recycle timestamp.
+            /// </summary>
+            /// <param name="itemHashCode">The hashcode for an object intance supplied by this recycler</param>
+            /// <returns>The game time when this item will (or did) expire</returns>
+            private float GetExpireTime(int itemHashCode)
+            {
                 if (this.staleDuration == UNLIMITED) return -1;
-                if (this.inUse.Contains(item)) return -1;
-                if (!this.available.Contains(item)) return -1;
-                return recycleTime[item.GetHashCode()] + this.staleDuration;
+                if (!this.recycleTime.ContainsKey(itemHashCode)) return -1;
+                return recycleTime[itemHashCode] + this.staleDuration;
             }
 
             /// <summary>
@@ -575,22 +608,22 @@ namespace PLib.Pooling
             }
 
             /// <summary>
-            /// 2017-8-8
+            /// 2017-8-11
             /// Indicates if the provided item has expired.
             /// Returns false if the Pool is set to UNLIMITED stale duration.
             /// Returns false if the item has no stale duration.
-            /// Returns false if the item did not come from this pool.
             /// Returns false if the item is not stale.
-            /// Returns true if the itme is stale.
+            /// Returns true if the item is stale.
             /// </summary>
-            private bool IsExpired(GameObject item)
+            /// <param name="itemHashCode">The hashcode for an object intance supplied by this recycler</param>
+            /// <returns>Whether the item is expired and should be destroyed</returns>
+            private bool IsExpired(int itemHashCode)
             {
                 if (this.staleDuration == UNLIMITED) return false;
 
-                int id = item.GetHashCode();
-                if (!this.recycleTime.ContainsKey(id)) return false;
+                if (!this.recycleTime.ContainsKey(itemHashCode)) return false;
 
-                return Time.time > GetExpireTime(item);
+                return Time.time > GetExpireTime(itemHashCode);
             }
 
             /// <summary>
