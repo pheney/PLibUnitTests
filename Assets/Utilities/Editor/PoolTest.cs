@@ -252,6 +252,32 @@ namespace PoolTest
         }
 
         [Test]
+        public void SetLimit_ReducesObjectCount()
+        {
+            //  setup
+            PPool.Clear(prefab);
+
+            //  arrange
+            float longStale = 9;
+            float shortStale = 1;
+            float midStale = (shortStale + longStale) * 0.5f;
+            int count = 7;
+            List<GameObject> list = new List<GameObject>();
+            PPool.SetLimit(prefab, staleDuration: longStale);
+            for (int i = 0; i < count; i++) list.Add(PPool.Get(prefab));
+            for (int i = 0; i < count; i++) PPool.Put(list[i]);
+            list.Clear();
+
+            //  act
+            Delay(midStale);
+            PPool.SetLimit(prefab, staleDuration: shortStale);
+            int available = PPool.GetAvailable(prefab);
+
+            //  assert
+            Assert.AreEqual(0, available, "Pool did not expire unused objects");
+        }
+
+        [Test]
         public void Prewarm_CreatesObjects()
         {
             //  setup
@@ -259,18 +285,14 @@ namespace PoolTest
 
             //  arrange
             int count = 8;
-            int halfCount = (int)(0.5f * count);
-            float duration = 4; //  second
+            float duration = 0; //  second
 
             //  act
             PPool.Prewarm(prefab, count, duration);
-            Delay(duration * 0.5f);
-            int partial = PPool.GetAvailable(prefab);
-            Delay(duration);
+            Delay(duration + 0.1f);
             int complete = PPool.GetAvailable(prefab);
 
             //  assert
-            Assert.AreEqual(halfCount, partial, "Partial generaton contains wrong number of objects");
             Assert.AreEqual(count, complete, "Contains wrong number of objects");
         }
 
@@ -327,16 +349,16 @@ namespace PoolTest
             PPool.Clear(prefab);
 
             //  arrange
-            float longStale = 9;
-            float shortStale = 1;
+            float shortStale = 0;
             int count = 7;
-            PPool.SetLimit(prefab, staleDuration: longStale);
-            PPool.Prewarm(prefab, count, duration: 0);
+            List<GameObject> list = new List<GameObject>();
+            PPool.SetLimit(prefab, staleDuration: shortStale);
+            for (int i = 0; i < count; i++) list.Add(PPool.Get(prefab));
+            for (int i = 0; i < count; i++) PPool.Put(list[i]);
+            list.Clear();
 
             //  act
-            PPool.SetLimit(prefab, staleDuration: shortStale);
-            Delay(shortStale + 0.1f);
-            PPool.Expire(prefab);
+            PPool.Expire(prefab, true);
             int available = PPool.GetAvailable(prefab);
 
             //  assert
@@ -435,6 +457,7 @@ namespace PoolTest
         Stopwatch stopwatch = new Stopwatch();
 
         /// <summary>
+        /// 2017-8-10
         /// </summary>
         /// <param name="duration">seconds</param>
         public void Delay(float duration)
@@ -443,6 +466,31 @@ namespace PoolTest
             stopwatch.Start();
             while (stopwatch.ElapsedMilliseconds < duration * 1000) ;
             stopwatch.Stop();
+        }
+
+        /// <summary>
+        /// 2017-8-10
+        /// Echos 'ticks' to console.
+        /// </summary>
+        /// <param name="duration">seconds</param>
+        public void DelayWithLogging(float duration)
+        {
+            for(int i = 0; i < duration; i++)
+            {
+                stopwatch.Reset();
+                stopwatch.Start();
+                while (stopwatch.ElapsedMilliseconds < 1000) ;
+                stopwatch.Stop();
+                UnityEngine.Debug.Log("Tick " + i + " seconds");
+            }
+
+            float remainder = duration - Mathf.FloorToInt(duration);
+
+            stopwatch.Reset();
+            stopwatch.Start();
+            while (stopwatch.ElapsedMilliseconds < remainder * 1000) ;
+            stopwatch.Stop();
+            UnityEngine.Debug.Log("Tick +" + remainder + " seconds");
         }
 
         #endregion

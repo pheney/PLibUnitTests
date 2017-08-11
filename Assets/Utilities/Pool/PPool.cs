@@ -184,7 +184,7 @@ namespace PLib.Pooling
         /// Prewarms the object pool. Prewarming is spread over a number
         /// of seconds equal to "duration." Default is 3 seconds.
         /// </summary>
-        public static void Prewarm(GameObject prefab, int count, float duration = 3)
+        public static void Prewarm(GameObject prefab, int count, float duration = 1)
         {
             GetPool(prefab).Prewarm(count, duration);
         }
@@ -380,16 +380,7 @@ namespace PLib.Pooling
 
                 float delay = Mathf.Max(1 / 60f, duration / count);
 
-                bool passedUnitTest = false;
-                if (passedUnitTest)
-                {
-                    PCoroutine c = PCoroutine.GetCoroutineRunner(prefab.name);
-                    c.StartCoroutineDelegate(PrewarmEnumerator(count, delay));
-                } else
-                {
-                    Debug.LogWarning("Prewarm does not pass Unit Tests. Using a shit hack that ignores 'duration' parameter.");
-                    for (int i = 0; i < count; i++) this.available.Add(CreateInstance());
-                }
+                PCoroutine.CreateCoroutineRunner(PrewarmEnumerator(count, delay), prefab.name);
             }
 
             /// <summary>
@@ -407,6 +398,8 @@ namespace PLib.Pooling
                     //  wait a few frames
                     yield return new WaitForSeconds(delay);
                 }
+
+                for (int i = 0; i < count; i++) Put(this.inUse[0]);
             }
 
             /// <summary>
@@ -424,11 +417,8 @@ namespace PLib.Pooling
                 //  subject to the maxObjects limit (if it exists).
                 for (int i = 0; i < count && (this.maxObjects > total || this.maxObjects == UNLIMITED); i++)
                 {
-                    this.available.Add(CreateInstance());
+                    this.inUse.Add(CreateInstance());
                     total = this.available.Count + this.inUse.Count;
-                    //Debug.Log("Item added.");
-                    //Debug.Log(string.Format("Available: {0}, InUse: {1}, maxObjects: {2}",
-                    //    this.available.Count, this.inUse.Count, this.maxObjects));
                 }
             }
 
@@ -465,8 +455,7 @@ namespace PLib.Pooling
                 //  if the pool size is set to 'infinite' then do nothing
                 if (this.maxObjects == UNLIMITED) return;
 
-                PCoroutine c = PCoroutine.GetCoroutineRunner(prefab.name);
-                c.StartCoroutineDelegate(CullEnumerator(immediate));
+                PCoroutine.CreateCoroutineRunner(CullEnumerator(immediate));
             }
 
             /// <summary>
@@ -612,9 +601,7 @@ namespace PLib.Pooling
             public void Expire(bool immediate = false)
             {
                 if (this.staleDuration == UNLIMITED) return;
-
-                PCoroutine c = PCoroutine.GetCoroutineRunner(prefab.name);
-                c.StartCoroutineDelegate(ExpireEnumerator(immediate));
+                PCoroutine.CreateCoroutineRunner(ExpireEnumerator(immediate), prefab.name);
             }
 
             /// <summary>
@@ -636,14 +623,16 @@ namespace PLib.Pooling
 
                     //  When the first timestamp in the sorted stale list has
                     //  not expired, then exit because nothing else has expired either.
-                    if ((sortedDict[0].Value + this.staleDuration) > Time.time) yield break;
+                    float currentTime = Time.time;
+                    float expiretime = sortedDict[0].Value + this.staleDuration;
+                    if (currentTime < expiretime) yield break;
 
                     ExpireImmediate(1);
 
                     if (immediate) continue;
 
                     //  wait a few frames
-                    yield return new WaitForSeconds(Random.Range(1, 3f));
+                    yield return new WaitForSeconds(Random.value+1);
                 }
             }
 

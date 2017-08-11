@@ -270,7 +270,7 @@ namespace PLib.Pooling
                 if (typeof(object) is T)
                 {
                     T i = (T)item;
-                    if (!this.inUse.Contains(i) 
+                    if (!this.inUse.Contains(i)
                         && !this.available.Contains(i)) return false;
                     this.inUse.Remove(i);
                     this.available.Add(i);
@@ -305,9 +305,8 @@ namespace PLib.Pooling
                 if (duration <= 0) return;
 
                 float delay = Mathf.Min(1 / 60f, duration / count);
-
-                PCoroutine c = PCoroutine.GetCoroutineRunner(typeof(T).ToString());
-                c.StartCoroutineDelegate(PrewarmEnumerator(count, delay));
+                string name = typeof(T).ToString();
+                PCoroutine.CreateCoroutineRunner(PrewarmEnumerator(count, delay), name);
             }
 
             /// <summary>
@@ -367,8 +366,8 @@ namespace PLib.Pooling
                 //  if the pool size is set to 'infinite' then do nothing
                 if (this.maxObjects == UNLIMITED) return;
 
-                PCoroutine c = PCoroutine.GetCoroutineRunner(typeof(T).ToString());
-                c.StartCoroutineDelegate(CullEnumerator(immediate));
+                string name = typeof(T).ToString();
+                PCoroutine.CreateCoroutineRunner(CullEnumerator(immediate), name);
             }
 
             /// <summary>
@@ -506,8 +505,8 @@ namespace PLib.Pooling
             {
                 if (this.staleDuration == UNLIMITED) return;
 
-                PCoroutine c = PCoroutine.GetCoroutineRunner(typeof(T).ToString());
-                c.StartCoroutineDelegate(ExpireEnumerator(immediate));
+                string name = typeof(T).ToString();
+                PCoroutine.CreateCoroutineRunner(ExpireEnumerator(immediate), name);
             }
 
             /// <summary>
