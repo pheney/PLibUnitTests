@@ -235,7 +235,7 @@ namespace PoolTest
             PPool.Clear(prefab);
 
             //  arrange
-            float duration = 1f;
+            float duration = 0;
             PPool.SetLimit(prefab, staleDuration: duration);
 
             //  act
@@ -259,18 +259,17 @@ namespace PoolTest
 
             //  arrange
             float longStale = 9;
-            float shortStale = 1;
-            float midStale = (shortStale + longStale) * 0.5f;
+            float shortStale = 0;
             int count = 7;
-            List<GameObject> list = new List<GameObject>();
             PPool.SetLimit(prefab, staleDuration: longStale);
+            List<GameObject> list = new List<GameObject>();
             for (int i = 0; i < count; i++) list.Add(PPool.Get(prefab));
             for (int i = 0; i < count; i++) PPool.Put(list[i]);
             list.Clear();
 
             //  act
-            Delay(midStale);
             PPool.SetLimit(prefab, staleDuration: shortStale);
+            //Delay(count * 2 + 0.1f);
             int available = PPool.GetAvailable(prefab);
 
             //  assert
@@ -289,7 +288,6 @@ namespace PoolTest
 
             //  act
             PPool.Prewarm(prefab, count, duration);
-            Delay(duration + 0.1f);
             int complete = PPool.GetAvailable(prefab);
 
             //  assert
@@ -398,16 +396,16 @@ namespace PoolTest
 
             //  arrange
             List<GameObject> list = new List<GameObject>();
-            float duration = 1;    //  seconds
+            float duration = 0;    //  seconds
             PPool.SetLimit(prefab, staleDuration: duration);
             int count = 9;
 
             //  act            
             for (int i = 0; i < count; i++) list.Add(PPool.Get(prefab));
             for (int i = 0; i < count; i++) PPool.Put(list[0]);
+            list.Clear();
 
             PPool.SetLimit(prefab, staleDuration: PPool.UNLIMITED);
-            Delay(duration + 1);
             int available = PPool.GetAvailable(prefab);
 
             //  assert

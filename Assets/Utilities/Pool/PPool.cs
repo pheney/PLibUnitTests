@@ -522,7 +522,7 @@ namespace PLib.Pooling
                     if (this.staleDuration < original)
                     {
                         //  Check if any existing timestamp are now stale
-                        Expire();
+                        Expire(true);
                     }
 
                     //  Ensure all available items have a stale timestamp
