@@ -95,8 +95,8 @@ namespace PoolTest
 
             //  arrange
             GameObject instance;
-            Vector3 position = new Vector3(Random.value, Random.value, Random.value);
-            Quaternion rotation = Quaternion.Euler(Random.value, Random.value, Random.value);
+            Vector3 position = Random.onUnitSphere;
+            Quaternion rotation = Quaternion.Euler(Random.onUnitSphere);
 
             //  act
             instance = PPool.Get(prefab, position, rotation);
@@ -403,11 +403,10 @@ namespace PoolTest
             //  act (create objects with timestamps)           
             PPool.SetLimit(prefab, staleDuration: duration);
             for (int i = 0; i < count; i++) list.Add(PPool.Get(prefab));
-            for (int i = 0; i < count; i++) PPool.Put(list[0]);
+            for (int i = 0; i < count; i++) PPool.Put(list[i]);
             list.Clear();
 
-            //  act
-            //  Use SetStale(unlimited), which should remove timestamps.
+            //  act (remove timestamps)
             PPool.SetLimit(prefab, staleDuration: PPool.UNLIMITED);
             int available = PPool.GetAvailable(prefab);
 

@@ -38,14 +38,14 @@ namespace PLib.Pooling
         private static IPool GetPool(GameObject prefab)
         {
             //  get the hash of the prefab's name
-            int hash = prefab.GetInstanceID();
+            int instanceID = prefab.GetInstanceID();
 
             //  when there is not already a pool for this item, create one
-            if (!pools.ContainsKey(hash))
+            if (!pools.ContainsKey(instanceID))
             {
-                pools.Add(hash, new Pool(prefab));
+                pools.Add(instanceID, new Pool(prefab));
             }
-            return pools[hash];
+            return pools[instanceID];
         }
 
         #endregion
@@ -437,7 +437,6 @@ namespace PLib.Pooling
             /// </summary>
             public void MaxSize(int size)
             {
-                int originalSize = this.maxObjects;
                 this.maxObjects = size;
                 if (this.maxObjects != UNLIMITED) Cull();
             }
@@ -574,13 +573,13 @@ namespace PLib.Pooling
             /// Returns -1 when the Pool object is set to UNLIMITED stale times.
             /// Returns -1 when the item does not have a recycle timestamp.
             /// </summary>
-            /// <param name="itemHashCode">The hashcode for an object intance supplied by this recycler</param>
+            /// <param name="instanceID">The instanceID for an object intance supplied by this recycler</param>
             /// <returns>The game time when this item will (or did) expire</returns>
-            private float GetExpireTime(int itemHashCode)
+            private float GetExpireTime(int instanceID)
             {
                 if (this.staleDuration == UNLIMITED) return -1;
-                if (!this.recycleTime.ContainsKey(itemHashCode)) return -1;
-                return recycleTime[itemHashCode] + this.staleDuration;
+                if (!this.recycleTime.ContainsKey(instanceID)) return -1;
+                return recycleTime[instanceID] + this.staleDuration;
             }
 
             /// <summary>
@@ -603,15 +602,15 @@ namespace PLib.Pooling
             /// Returns false if the item is not stale.
             /// Returns true if the item is stale.
             /// </summary>
-            /// <param name="itemHashCode">The hashcode for an object intance supplied by this recycler</param>
+            /// <param name="instanceID">The instanceID for an object instance supplied by this recycler</param>
             /// <returns>Whether the item is expired and should be destroyed</returns>
-            private bool IsExpired(int itemHashCode)
+            private bool IsExpired(int instanceID)
             {
                 if (this.staleDuration == UNLIMITED) return false;
 
-                if (!this.recycleTime.ContainsKey(itemHashCode)) return false;
+                if (!this.recycleTime.ContainsKey(instanceID)) return false;
 
-                return Time.time > GetExpireTime(itemHashCode);
+                return Time.time > GetExpireTime(instanceID);
             }
 
             /// <summary>
