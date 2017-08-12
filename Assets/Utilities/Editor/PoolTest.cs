@@ -408,7 +408,6 @@ namespace PoolTest
 
             //  act
             //  Use SetStale(unlimited), which should remove timestamps.
-            Debug.Log("<<< SetStale to UNLIMITED >>>");
             PPool.SetLimit(prefab, staleDuration: PPool.UNLIMITED);
             int available = PPool.GetAvailable(prefab);
 

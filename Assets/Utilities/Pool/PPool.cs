@@ -38,7 +38,7 @@ namespace PLib.Pooling
         private static IPool GetPool(GameObject prefab)
         {
             //  get the hash of the prefab's name
-            int hash = prefab.GetHashCode();
+            int hash = prefab.GetInstanceID();
 
             //  when there is not already a pool for this item, create one
             if (!pools.ContainsKey(hash))
@@ -106,7 +106,7 @@ namespace PLib.Pooling
         /// Lets the pool manager know to recycle the item. The appropriate pool is notified and the object
         /// is reset and deactivated.
         /// 
-        /// WARNING: if the item was renamed, this will probably fail (depending on whether GetHashCode()
+        /// WARNING: if the item was renamed, this will probably fail (depending on whether GetInstanceID()
         ///     uses the object name to generate the hashcode. When an item's hashcode cannot be found in
         ///     the pool, the item is destroyed and the return value is false.
         /// </summary>
@@ -154,7 +154,7 @@ namespace PLib.Pooling
         public static int GetAvailable(GameObject prefab)
         {
             int result = -1;
-            int hash = prefab.GetHashCode();
+            int hash = prefab.GetInstanceID();
             if (pools.ContainsKey(hash))
             {
                 result = GetPool(prefab).Available();
@@ -171,7 +171,7 @@ namespace PLib.Pooling
         public static int GetInUse(GameObject prefab)
         {
             int result = -1;
-            int hash = prefab.GetHashCode();
+            int hash = prefab.GetInstanceID();
             if (pools.ContainsKey(hash))
             {
                 result = GetPool(prefab).InUse();
@@ -507,18 +507,6 @@ namespace PLib.Pooling
             /// </summary>
             public void StaleDuration(float duration)
             {
-                #region Debug logging
-
-                Debug.Log(string.Format("StaleDuration({0}) called", duration));
-                Debug.Log(string.Format("Timestamp list size: {0}", this.recycleTime.Count));
-                foreach (int id in this.recycleTime.Keys)
-                {
-                    Debug.Log(string.Format("Item {0} recycled at {1} ({2})",
-                        id, this.recycleTime[id], IsExpired(id) ? "expired" : "ok"));
-                }
-
-                #endregion
-
                 float original = this.staleDuration;
                 this.staleDuration = duration;
 
@@ -546,7 +534,7 @@ namespace PLib.Pooling
                         g = this.available[i];
 
                         //  skip items that already have a timestamp
-                        if (this.recycleTime.ContainsKey(g.GetHashCode())) continue;
+                        if (this.recycleTime.ContainsKey(g.GetInstanceID())) continue;
                         SetTimestamp(g);
                     }
                 }
@@ -560,7 +548,7 @@ namespace PLib.Pooling
             private void SetTimestamp(GameObject item)
             {
                 if (this.staleDuration == UNLIMITED) return;
-                recycleTime.Add(item.GetHashCode(), Time.time);
+                recycleTime.Add(item.GetInstanceID(), Time.time);
             }
 
             /// <summary>
@@ -575,7 +563,7 @@ namespace PLib.Pooling
             /// <returns>The game time when this item will (or did) expire</returns>
             private float GetExpireTime(GameObject item)
             {
-                return GetExpireTime(item.GetHashCode());
+                return GetExpireTime(item.GetInstanceID());
             }
 
             /// <summary>
@@ -603,7 +591,7 @@ namespace PLib.Pooling
             /// </summary>
             private void RemoveTimestamp(GameObject item)
             {
-                int id = item.GetHashCode();
+                int id = item.GetInstanceID();
                 if (recycleTime.ContainsKey(id)) recycleTime.Remove(id);
             }
 
@@ -693,7 +681,7 @@ namespace PLib.Pooling
                     else
                     {
                         //  item has expired, so remove and destroy it
-                        this.recycleTime.Remove(g.GetHashCode());
+                        this.recycleTime.Remove(g.GetInstanceID());
                         this.available.RemoveAt(i);
                         DestroyInstance(g);
                         expired++;
