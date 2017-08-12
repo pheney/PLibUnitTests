@@ -1,11 +1,9 @@
 ﻿//#define UNIT_TEST
 
-using UnityEngine;
 using System.Collections.Generic;
 using NUnit.Framework;
 using PLib.Pooling;
 using System;
-using Random = UnityEngine.Random;
 using System.Diagnostics;
 
 namespace PLib
@@ -253,7 +251,10 @@ namespace PoolTest
             //  arrange
             int count = 9;
             int reduced = count - 1;
-            PPocoPool.Prewarm<TestClass>(count);
+            List<TestClass> list = new List<TestClass>();
+            for (int i = 0; i < count; i++) list.Add(PPocoPool.Get< TestClass>());
+            for (int i = 0; i < count; i++) PPocoPool.Put(list[0]);
+            list.Clear();
 
             //  act
             PPocoPool.SetLimit<TestClass>(poolSize: reduced);

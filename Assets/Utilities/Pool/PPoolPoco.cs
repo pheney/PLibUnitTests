@@ -55,37 +55,6 @@ namespace PLib.Pooling
         //////////////////////
 
         /// <summary>
-        ///	2017-8-4
-        /// Clears all pools. Destroys all objects in the pools, then
-        ///	deletes the pools as well. This can be expensive.
-        /// </summary>
-        public static void Clear<T>() where T : new()
-        {
-            GetPool<T>().Clear();
-        }
-
-        /// <summary>
-        /// 2017-8-4
-        /// Destroys all unused items in excess of the each item pool's 
-        /// maximum capacity. Maximum capacity is set using SetLimit().
-        /// </summary>
-        public static void Cull<T>(bool immediate = false) where T : new()
-        {
-            GetPool<T>().Cull(immediate);
-        }
-
-        /// <summary>
-        /// 2017-8-4
-        /// Destroys all unused items that are stale. Stale items are
-        /// objects that have been unused longer than Stale Duration.
-        /// Stale Duration is set using SetLimit().
-        /// </summary>
-        public static void Expire<T>(bool immediate = false) where T : new()
-        {
-            GetPool<T>().Expire(immediate);
-        }
-
-        /// <summary>
         /// 2017-8-4
         /// Returns an instance of the provided prefab from the appropriate pool.
         /// </summary>
@@ -185,6 +154,37 @@ namespace PLib.Pooling
             GetPool<T>().Prewarm(count, duration);
         }
 
+        /// <summary>
+        ///	2017-8-4
+        /// Clears all pools. Destroys all objects in the pools, then
+        ///	deletes the pools as well. This can be expensive.
+        /// </summary>
+        public static void Clear<T>() where T : new()
+        {
+            GetPool<T>().Clear();
+        }
+
+        /// <summary>
+        /// 2017-8-4
+        /// Destroys all unused items in excess of the each item pool's 
+        /// maximum capacity. Maximum capacity is set using SetLimit().
+        /// </summary>
+        public static void Cull<T>(bool immediate = false) where T : new()
+        {
+            GetPool<T>().Cull(immediate);
+        }
+
+        /// <summary>
+        /// 2017-8-4
+        /// Destroys all unused items that are stale. Stale items are
+        /// objects that have been unused longer than Stale Duration.
+        /// Stale Duration is set using SetLimit().
+        /// </summary>
+        public static void Expire<T>(bool immediate = false) where T : new()
+        {
+            GetPool<T>().Expire(immediate);
+        }
+
         #endregion
 
         /// <summary>
@@ -236,7 +236,7 @@ namespace PLib.Pooling
             public object Get()
             {
                 //  when the number of items in use is at max, return null
-                if (maxObjects > 0 && inUse.Count == maxObjects) return default(T);
+                if (maxObjects != UNLIMITED && maxObjects <= inUse.Count) return default(T);
 
                 T item;
 
@@ -274,7 +274,7 @@ namespace PLib.Pooling
                         && !this.available.Contains(i)) return false;
                     this.inUse.Remove(i);
                     this.available.Add(i);
-                    SetRecycleTime(i);
+                    SetTimestamp(i);
                 }
                 return true;
             }
@@ -302,7 +302,6 @@ namespace PLib.Pooling
             public void Prewarm(int count, float duration)
             {
                 if (count <= 0) return;
-                if (duration <= 0) return;
 
                 float delay = Mathf.Min(1 / 60f, duration / count);
                 string name = typeof(T).ToString();
@@ -322,6 +321,8 @@ namespace PLib.Pooling
                     PrewarmImmediate(1);
                     yield return new WaitForSeconds(delay);
                 }
+
+                for (int i = 0; i < count; i++) Put(this.inUse[0]);
             }
 
             /// <summary>
@@ -331,10 +332,14 @@ namespace PLib.Pooling
             /// </summary>
             private void PrewarmImmediate(int count = 1)
             {
-                int total = this.available.Count + this.inUse.Count;
-                for (int i = 0; i < count && ((total + i) < maxObjects || maxObjects == UNLIMITED); i++)
+                int total = -1;
+
+                //  Generate the required number of items, 
+                //  subject to the maxObjects limit (if it exists).
+                for (int i = 0; i < count && (this.maxObjects > total || this.maxObjects == UNLIMITED); i++)
                 {
-                    this.Put(new T());
+                    this.inUse.Add(new T());
+                    total = this.available.Count + this.inUse.Count;
                 }
             }
 
@@ -348,9 +353,8 @@ namespace PLib.Pooling
             /// </summary>
             public void MaxSize(int size)
             {
-                int originalSize = this.maxObjects;
                 this.maxObjects = size;
-                if (this.maxObjects < originalSize && size != UNLIMITED) Cull();
+                if (this.maxObjects != UNLIMITED) Cull();
             }
 
             /// <summary>
@@ -377,8 +381,10 @@ namespace PLib.Pooling
             /// <param name="immediate">Cull everything at once</param>
             private IEnumerator CullEnumerator(bool immediate)
             {
-                //  loop until the pool is culled to the appropriate amount
-                while (this.maxObjects < (this.available.Count + this.inUse.Count))
+                //  Loop until the pool is culled to the appropriate amount.
+                //  If the pool size is set to 'infinite' then abort culling.
+                while (this.maxObjects < (this.available.Count + this.inUse.Count)
+                    && this.maxObjects != UNLIMITED)
                 {
                     CullImmediate(1);
 
@@ -439,22 +445,22 @@ namespace PLib.Pooling
                     foreach (T g in this.available)
                     {
                         if (this.recycleTime.ContainsKey(g.GetHashCode())) continue;
-                        SetRecycleTime(g);
+                        SetTimestamp(g);
                     }
                 }
             }
 
             /// <summary>
-            /// 2017-8-4
-            /// Enters a time stamp for the GameObject that indicates when the
+            /// 2017-8-11
+            /// Enters a time stamp for the Object that indicates when the
             /// object was recycled (returned to this pool).
             /// </summary>
-            private void SetRecycleTime(T item)
+            private void SetTimestamp(T item)
             {
                 if (this.staleDuration == UNLIMITED) return;
                 recycleTime.Add(item.GetHashCode(), Time.time);
             }
-
+            
             /// <summary>
             /// 2017-8-4
             /// Returns the expiration time (in seconds) for the item.
